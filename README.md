@@ -1,4 +1,4 @@
-# Unity-ARFoundation-echo3D-example
+# Unity-NianticLightship-echo3D
 Example Unity project with Niantic Lightship and echo3D integrated.
 
 Build in Unity version 2020.3.18f1 and tested on Unity versions 2020.1, 2019.4, 2018.4.
