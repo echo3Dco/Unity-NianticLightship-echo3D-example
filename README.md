@@ -11,13 +11,13 @@ Follow the instructions on our [documentation page](https://docs.echo3D.co/unity
 
 ## Run
 * [Add the 3D model](https://docs.echo3D.co/quickstart/add-a-3d-model) to the console.
-* [Set the API key](https://docs.echo3D.co/unity/using-the-sdk) in the `echo3D.cs` script inside the `echo3D\echo3D.prefab` using the the Inspector.
-* [Set your Niantic Lightship license key](https://lightship.dev/docs/authentication.html) in the ARDK Auth Config object inside 'Resources\ARDK\ArdkAuthConfig.asset'
+* [Set the API key](https://docs.echo3D.co/unity/using-the-sdk) in the `echo3D.cs` script inside the `echo3D/echo3D.prefab` using the the Inspector.
+* [Set your Niantic Lightship license key](https://lightship.dev/docs/authentication.html) in the ARDK Auth Config object inside `Resources\ARDK\ArdkAuthConfig.asset`.
 * [Build and run the AR application](https://docs.echo3D.co/unity/adding-ar-capabilities#4-build-and-run-the-ar-application).
 
 ## Common issues
-* Make sure your system meets the [minimum requirments](https://lightship.dev/docs/system_reqs.html) for Niantic Lightship 
-* If you are building for Android, make you you folow [these extra instructions](https://lightship.dev/docs/building_android.html) before building your app.
+* Make sure your system meets the [minimum requirments](https://lightship.dev/docs/system_reqs.html) for Niantic Lightship.
+* If you are building for Android, make you you follow [these extra instructions](https://lightship.dev/docs/building_android.html) before building your app.
 
 ## Learn more
 Refer to our [documentation](https://docs.echo3D.co/unity/) to learn more about how to use Unity and echo3D.
