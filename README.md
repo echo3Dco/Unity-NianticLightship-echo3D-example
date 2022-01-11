@@ -13,7 +13,7 @@ Follow the instructions on our [documentation page](https://docs.echo3D.co/unity
 * [Add the 3D model](https://docs.echo3D.co/quickstart/add-a-3d-model) to the console.
 * [Set the API key](https://docs.echo3D.co/unity/using-the-sdk) in the `echo3D.cs` script inside the `echo3D/echo3D.prefab` using the the Inspector.
 * [Set your Niantic Lightship license key](https://lightship.dev/docs/authentication.html) in the `ARDK Auth Config` object inside `Resources\ARDK\ArdkAuthConfig.asset`.
-* [Build and run the AR application](https://docs.echo3D.co/unity/adding-ar-capabilities#4-build-and-run-the-ar-application).
+* [Build and run the AR application](https://docs.echo3D.co/unity/adding-ar-capabilities#4-build-and-run-the-ar-application) with the `Assets/Scenes/ARDK-echo3D-Example.unity` scene.
 
 ## Common issues
 * Make sure your system meets the [minimum requirments](https://lightship.dev/docs/system_reqs.html) for Niantic Lightship.
