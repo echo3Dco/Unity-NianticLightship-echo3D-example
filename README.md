@@ -17,7 +17,7 @@ Follow the instructions on our [documentation page](https://docs.echo3D.co/unity
 
 ## Common issues
 * Make sure your system meets the [minimum requirments](https://lightship.dev/docs/system_reqs.html) for Niantic Lightship.
-* If you are building for Android, make you you follow [these extra instructions](https://lightship.dev/docs/building_android.html) before building your app.
+* If you are building for Android, make to follow [these extra instructions](https://lightship.dev/docs/building_android.html) before building your app.
 
 ## Learn more
 Refer to our [documentation](https://docs.echo3D.co/unity/) to learn more about how to use Unity and echo3D.
