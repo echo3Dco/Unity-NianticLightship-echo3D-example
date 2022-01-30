@@ -10,7 +10,7 @@ Don't have an API key? Make sure to register for FREE at [echo3D](https://consol
 Follow the instructions on our [documentation page](https://docs.echo3D.co/unity/adding-ar-capabilities) to [set your API key](https://docs.echo3D.co/unity/adding-ar-capabilities#3-set-you-api-key).
 
 ## Run
-* [Add the 3D model](https://docs.echo3D.co/quickstart/add-a-3d-model) to the console.
+* [Add the 3D model](https://docs.echo3D.co/quickstart/add-a-3d-model) from the [Models](/Models) folder to the console.
 * [Set the API key](https://docs.echo3D.co/unity/using-the-sdk) in the `echo3D.cs` script inside the `echo3D/echo3D.prefab` using the the Inspector.
 * [Set your Niantic Lightship license key](https://lightship.dev/docs/authentication.html) in the `ARDK Auth Config` object inside `Resources/ARDK/ArdkAuthConfig.asset`.
 * [Build and run the AR application](https://docs.echo3D.co/unity/adding-ar-capabilities#4-build-and-run-the-ar-application) with the `Assets/Scenes/ARDK-echo3D-Example.unity` scene.
@@ -26,4 +26,5 @@ Refer to our [documentation](https://docs.echo3D.co/unity/) to learn more about 
 Feel free to reach out at [support@echo3D.co](mailto:support@echo3D.co) or join our [support channel on Slack](https://go.echo3D.co/join).
 
 ## Screenshots
-![Screenshot1](/Screenshots/screenshot.gif)
+![Console Screenshot](/Screenshots/console.png)
+![App Screenshot](/Screenshots/screenshot.gif)
