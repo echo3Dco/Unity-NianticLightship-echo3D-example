@@ -28,3 +28,6 @@ Feel free to reach out at [support@echo3D.co](mailto:support@echo3D.co) or join 
 ## Screenshots
 ![Console Screenshot](/Screenshots/console.png)
 ![App Screenshot](/Screenshots/screenshot.gif)
+
+## License
+https://lightship.dev/terms/
