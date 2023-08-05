@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System.Collections;
 using System.Collections.Generic;
@@ -177,7 +177,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 
       if (!(session is _IMockARSession mockSession))
       {
-        ARLog._Error("Mock objects can only be detected by mock ARSessions.");
+        ARLog._Warn("Mock objects can only be detected by mock ARSessions.");
         return;
       }
 

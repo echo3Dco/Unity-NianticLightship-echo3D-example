@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 namespace Niantic.ARDK.AR.LightEstimate
 {
@@ -9,8 +9,7 @@ namespace Niantic.ARDK.AR.LightEstimate
       if (source == null)
         return null;
 
-      var possibleResult = source as _SerializableARLightEstimate;
-      if (possibleResult != null)
+      if (source is _SerializableARLightEstimate possibleResult)
         return possibleResult;
       
       return

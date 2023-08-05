@@ -1,10 +1,13 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
 
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.Anchors;
+using Niantic.ARDK.AR.Configuration;
+
+using UnityEngine;
 
 namespace Niantic.ARDK.VirtualStudio.AR.Mock
 {
@@ -12,7 +15,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
   public abstract class MockAnchorBase:
     MockDetectableBase
   {
-    private HashSet<Guid> _discoveredInSessions = new HashSet<Guid>();
+    internal HashSet<Guid> _discoveredInSessions = new HashSet<Guid>();
 
     internal abstract void CreateAndAddAnchorToSession(_IMockARSession arSession);
 
@@ -40,7 +43,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       }
     }
 
-    private void Update()
+    protected virtual void Update()
     {
       // Check every frame to see if anything has changed in this anchor's transform.
 

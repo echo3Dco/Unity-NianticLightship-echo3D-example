@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -175,33 +175,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote.Data
   {
     public static readonly Guid ID = new Guid("c0e3f4b5-da75-498b-93ba-9139ec3eaa20");
   }
-
-  [Serializable]
-  internal sealed class NetworkingDataReceivedFromArmMessage
-  {
-    public static readonly Guid ID = new Guid("c91b6ce0-3922-4ac7-a269-0c60e974e4dc");
-
-    public uint Tag;
-    public byte[] Data;
-  }
-
-  [Serializable]
-  internal sealed class NetworkingStatusReceivedFromArmMessage
-  {
-    public static readonly Guid ID = new Guid("c91b6ce0-3922-4ac7-a269-0c60e974e4dd");
-
-    public uint Status;
-  }
-
-  [Serializable]
-  internal sealed class NetworkingResultReceivedFromArmMessage
-  {
-    public static readonly Guid ID = new Guid("c91b6ce0-3922-4ac7-a269-0c60e974e4de");
-
-    public uint Outcome;
-    public byte[] Details;
-  }
-
 #endregion
 
 #region ARNetworking

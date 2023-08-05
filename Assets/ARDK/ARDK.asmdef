@@ -1,7 +1,11 @@
 {
     "name": "ARDK",
+    "rootNamespace": "",
     "references": [
-        "Unity.RenderPipelines.Universal.Runtime"
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.InputSystem",
+        "GUID:a6a5e2c13bff64016a54ce5baa042edb"
     ],
     "includePlatforms": [
         "Android",
@@ -14,8 +18,12 @@
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "zxing.unity.dll",
+        "Niantic.Platform.Analytics.NATelemetry.dll",
+        "Niantic.Google.Protobuf.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [
@@ -24,5 +32,6 @@
             "expression": "7.0",
             "define": "ARDK_HAS_URP"
         }
-    ]
+    ],
+    "noEngineReferences": false
 }

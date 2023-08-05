@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -34,9 +34,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       _networking.PeerRemoved += OnInternalPeerRemoved;
       _networking.Deinitialized += OnInternalDeinitializing;
       _networking.PersistentKeyValueUpdated += OnInternalPersistentKeyValueUpdated;
-      _networking.DataReceivedFromArm += OnInternalDidReceiveDataFromArm;
-      _networking.SessionStatusReceivedFromArm += OnInternalDidReceiveStatusFromArm;
-      _networking.SessionResultReceivedFromArm += OnInternalDidReceiveResultFromArm;
 
       _RemoteConnection.Register
       (
@@ -67,12 +64,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
         NetworkingStorePersistentKeyValueMessage.ID.Combine(stageIdentifier),
         HandleStorePersistentKeyValueMessage
       );
-
-      _RemoteConnection.Register
-      (
-        NetworkingSendDataToArmMessage.ID.Combine(stageIdentifier),
-        HandleSendDataToArmMessage
-      );
     }
 
     ~_RemoteDeviceMultipeerNetworkingHandler()
@@ -99,9 +90,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       _networking.PeerRemoved -= OnInternalPeerRemoved;
       _networking.Deinitialized -= OnInternalDeinitializing;
       _networking.PersistentKeyValueUpdated -= OnInternalPersistentKeyValueUpdated;
-      _networking.DataReceivedFromArm -= OnInternalDidReceiveDataFromArm;
-      _networking.SessionStatusReceivedFromArm -= OnInternalDidReceiveStatusFromArm;
-      _networking.SessionResultReceivedFromArm -= OnInternalDidReceiveResultFromArm;
 
       var stageId = InnerNetworking.StageIdentifier;
       _RemoteConnection.Unregister
@@ -232,44 +220,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       );
     }
 
-    private void OnInternalDidReceiveDataFromArm(DataReceivedFromArmArgs args)
-    {
-      _RemoteConnection.Send
-      (
-        NetworkingDataReceivedFromArmMessage.ID.Combine(InnerNetworking.StageIdentifier),
-        new NetworkingDataReceivedFromArmMessage
-        {
-          Tag = args.Tag,
-          Data = args.CreateDataReader().ToArray(),
-        }.SerializeToArray()
-      );
-    }
-
-    private void OnInternalDidReceiveStatusFromArm(SessionStatusReceivedFromArmArgs args)
-    {
-      _RemoteConnection.Send
-      (
-        NetworkingStatusReceivedFromArmMessage.ID.Combine(InnerNetworking.StageIdentifier),
-        new NetworkingStatusReceivedFromArmMessage
-        {
-          Status = args.Status,
-        }.SerializeToArray()
-      );
-    }
-
-    private void OnInternalDidReceiveResultFromArm(SessionResultReceivedFromArmArgs args)
-    {
-      _RemoteConnection.Send
-      (
-        NetworkingResultReceivedFromArmMessage.ID.Combine(InnerNetworking.StageIdentifier),
-        new NetworkingResultReceivedFromArmMessage
-        {
-          Outcome = args.Outcome,
-          Details = args.CreateDetailsReader().ToArray(),
-        }.SerializeToArray()
-      );
-    }
-
     private void HandleJoinMessage(MessageEventArgs e)
     {
       var message = e.data.DeserializeFromArray<NetworkingJoinMessage>();
@@ -308,13 +258,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       var value = message.Value;
 
       _networking.StorePersistentKeyValue(key, value);
-    }
-
-    private void HandleSendDataToArmMessage(MessageEventArgs e)
-    {
-      var message = e.data.DeserializeFromArray<NetworkingSendDataToArmMessage>();
-
-      _networking.SendDataToArm(message.Tag, message.Data);
     }
 
     private void HandleDestroyMessage(MessageEventArgs e)

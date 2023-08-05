@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
 using System.Linq;
@@ -54,7 +54,12 @@ namespace Niantic.ARDK.Networking.HLAPI.Object
       ReplicationMode replicationMode
     )
     {
-      if (replicationMode.Transport != TransportType.ReliableOrdered)
+#pragma warning disable 0618
+      var isNotReliableTransport =
+        replicationMode.Transport != TransportType.ReliableOrdered;
+#pragma warning restore 0618
+      
+      if (isNotReliableTransport)
         return NothingToWrite;
 
       var targetPeerList = targetPeers.ToList();

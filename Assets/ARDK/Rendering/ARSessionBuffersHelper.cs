@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -21,6 +21,7 @@ namespace Niantic.ARDK.Rendering
     /// on Android devices.
     /// @param commandBuffer The command buffer to add the IssuePluginEventAndData step to.
     /// @param arSession The AR session to fetch updates for.
+    [Obsolete("Please use _NativeARSession.SetUpdatingCamera(UnityEngine.Camera) instead.")]
     public static void IssuePluginEventAndData
     (
       this CommandBuffer commandBuffer,
@@ -28,57 +29,7 @@ namespace Niantic.ARDK.Rendering
     )
     {
       if (arSession is _NativeARSession nativeSession)
-        nativeSession.SetupCommandBuffer(commandBuffer);
-    }
-
-    public static CommandBuffer ConstructBackgroundBuffer
-    (
-      ARCameraFeed cameraFeed,
-      bool clearRenderTarget = true
-    )
-    {
-      return ConstructBackgroundBuffer(cameraFeed, Vector2.one, Vector2.zero, clearRenderTarget);
-    }
-
-    public static CommandBuffer ConstructBackgroundBuffer
-    (
-      ARCameraFeed cameraFeed,
-      Vector2 scale,
-      Vector2 offset,
-      bool clearRenderTargetDepth = true
-    )
-    {
-      var cb = new CommandBuffer();
-      // Label this pass in Unity's Frame Debug utility
-      cb.name = "[ARDK] RenderARCamera";
-
-      // Clear to a default background color.
-      cb.ClearRenderTarget(clearRenderTargetDepth, true, Color.cyan);
-
-      // Wait for GPUFence to pass (ie wait for ARCameraFeed to update)
-      // then blit to screen.
-#if UNITY_2019_1_OR_NEWER
-      cb.WaitOnAsyncGraphicsFence(cameraFeed.VideoFeedFence);
-#else
-      cb.WaitOnGPUFence(cameraFeed.VideoFeedFence);
-#endif
-
-      if (scale != Vector2.one || offset != Vector2.zero)
-      {
-       cb.Blit
-       (
-         cameraFeed.VideoFull,
-         BuiltinRenderTextureType.CurrentActive,
-         scale,
-         offset
-       );
-      }
-      else
-      {
-       cb.Blit(cameraFeed.VideoFull, BuiltinRenderTextureType.CurrentActive);
-      }
-
-      return cb;
+        nativeSession.AddIssueNativeRenderEvent(commandBuffer);
     }
 
     public static void AddBackgroundBuffer(Camera camera, CommandBuffer commandBuffer)

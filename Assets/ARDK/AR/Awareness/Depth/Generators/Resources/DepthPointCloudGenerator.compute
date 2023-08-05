@@ -6,7 +6,6 @@ static const uint3 NumThreads = {8, 8, 1};
 
 uint DepthBufferWidth;
 uint DepthBufferHeight;
-float VerticalOffsetPerMeter;
 float4 Intrinsics;
 float4x4 CameraToWorld;
 
@@ -17,15 +16,9 @@ StructuredBuffer<float> Depth;
 // helper method to get the index into the Depth buffer from the thread index
 int DepthBufferIndexFromId(in uint3 id) 
 {
-    // Check to see if this worker thread is padding
-    if(DepthBufferWidth <= id.x ) {
-        return -1;
-    }
-    if(DepthBufferHeight <= id.y ) {
-        return -1;
-    }
-    
-    return id.x + id.y * DepthBufferWidth;
+    // return -1 if this worker thread is padding, else return the depth buffer index
+    return (DepthBufferWidth <= id.x || DepthBufferHeight <= id.y) ?
+        -1 : id.x + id.y * DepthBufferWidth;
 }
 
 float3 UnProject(in float2 id, in float depth) 
@@ -60,13 +53,10 @@ void Generate(uint3 id : SV_DispatchThreadID)
         return;
     }
     float depth = Depth[index];
-    
-    // calculate the vertical fixup based on the distance from the camera
-    float3 verticalFixup = float3(0,VerticalOffsetPerMeter * depth,0);
 
     // Unproject
     float3 position = UnProject(float2(id.x, id.y), depth);
     
     // apply the vertial fixup and save the value into the point cloud buffer
-    PointCloud[index] = position + verticalFixup;
+    PointCloud[index] = position;
 }

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -41,9 +41,7 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
     private Role? _startupRole;
     private Action _pass = () => {};
     private Action _fail = () => {};
-
-    private IMultipeerNetworking _networking;
-
+    
     protected override void SetupSession(out Action initializer, out int order)
     {
       initializer = () =>

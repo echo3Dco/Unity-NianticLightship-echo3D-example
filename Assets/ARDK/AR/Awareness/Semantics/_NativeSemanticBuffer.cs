@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using Niantic.ARDK.Internals;
 
@@ -6,6 +6,7 @@ using System;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.Camera;
+using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Logging;
 
 using UnityEngine;
@@ -22,7 +23,7 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
 
     static _NativeSemanticBuffer()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     internal _NativeSemanticBuffer(IntPtr nativeHandle, float worldScale, CameraIntrinsics intrinsics)
@@ -42,12 +43,7 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          return _SemanticBuffer_GetNumberChannels(_nativeHandle);
-
-#pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+        return _SemanticBuffer_GetNumberChannels(_nativeHandle);
       }
     }
 
@@ -57,26 +53,17 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
       {
         if (_channelNames == null)
         {
-          if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+          var ptrNames = new IntPtr[ChannelCount];
+          if (ChannelCount > 0 && _SemanticBuffer_GetNames(_nativeHandle, ptrNames))
           {
-            var ptrNames = new IntPtr[ChannelCount];
-            if (ChannelCount > 0 && _SemanticBuffer_GetNames(_nativeHandle, ptrNames))
-            {
-              _channelNames = new string[ChannelCount];
-              for (int i = 0; i < ChannelCount; i++)
-                if (ptrNames[i] != IntPtr.Zero)
-                  _channelNames[i] = Marshal.PtrToStringAnsi(ptrNames[i]);
-            }
-            else
-            {
-              _channelNames = new string[0];
-            }
+            _channelNames = new string[ChannelCount];
+            for (int i = 0; i < ChannelCount; i++)
+              if (ptrNames[i] != IntPtr.Zero)
+                _channelNames[i] = Marshal.PtrToStringAnsi(ptrNames[i]);
           }
           else
           {
-#pragma warning disable 0162
-            throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+            _channelNames = new string[0];
           }
         }
 
@@ -144,108 +131,41 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
 
     public bool DoesChannelExistAt(int x, int y, int channelIndex)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistAt(_nativeHandle, x, y, channelIndex);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_DoesChannelExistAt(_nativeHandle, x, y, channelIndex);
     }
 
     public bool DoesChannelExistAt(int x, int y, string channelName)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistAtByName(_nativeHandle, x, y, channelName);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_DoesChannelExistAtByName(_nativeHandle, x, y, channelName);
     }
 
     public bool DoesChannelExistAt(Vector2 uv, int channelIndex)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistAtNormalised(_nativeHandle, uv.x, uv.y, channelIndex);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_DoesChannelExistAtNormalised(_nativeHandle, uv.x, uv.y, channelIndex);
     }
 
     public bool DoesChannelExistAt(Vector2 uv, string channelName)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        return
-          _SemanticBuffer_DoesChannelExistAtNormalisedByName
-          (
-            _nativeHandle,
-            uv.x,
-            uv.y,
-            channelName
-          );
-      }
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-    }
-
-    public bool DoesChannelExistAt
-    (
-      Vector2 point,
-      int viewportWidth,
-      int viewportHeight,
-      int channelIndex
-    )
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistAtViewpoint
-          (_nativeHandle, point.x, point.y, viewportWidth, viewportHeight, channelIndex);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-    }
-
-    public bool DoesChannelExistAt
-    (
-      Vector2 point,
-      int viewportWidth,
-      int viewportHeight,
-      string channelName
-    )
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistAtViewpointByName
-          (_nativeHandle, point.x, point.y, viewportWidth, viewportHeight, channelName);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return
+        _SemanticBuffer_DoesChannelExistAtNormalisedByName
+        (
+          _nativeHandle,
+          uv.x,
+          uv.y,
+          channelName
+        );
     }
 
     public bool DoesChannelExist(int channelIndex)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExist(_nativeHandle, channelIndex);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_DoesChannelExist(_nativeHandle, channelIndex);
     }
 
     public bool DoesChannelExist(string channelName)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_DoesChannelExistByName(_nativeHandle, channelName);
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_DoesChannelExistByName(_nativeHandle, channelName);
     }
 
-    /// <inheritdoc />
     public bool CreateOrUpdateTextureARGB32
     (
       ref Texture2D texture,
@@ -303,189 +223,43 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
 
     public override IAwarenessBuffer GetCopy()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle = _SemanticBuffer_GetCopy(_nativeHandle);
-        return new _NativeSemanticBuffer(newHandle, _worldScale, Intrinsics);
-      }
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-    }
-
-    public ISemanticBuffer RotateToScreenOrientation()
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle = _SemanticBuffer_RotateToScreenOrientation(_nativeHandle);
-        return new _NativeSemanticBuffer(newHandle, _worldScale, Intrinsics);
-      }
-
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-    }
-
-    public ISemanticBuffer Interpolate
-    (
-      IARCamera arCamera,
-      int viewportWidth,
-      int viewportHeight,
-      float backProjectionDistance = AwarenessParameters.DefaultBackProjectionDistance
-    )
-    {
-      var projectionMatrix =
-        arCamera.CalculateProjectionMatrix
-        (
-          Screen.orientation,
-          viewportWidth,
-          viewportHeight,
-          _SemanticBuffer_GetNearDistance(_nativeHandle),
-          _SemanticBuffer_GetFarDistance(_nativeHandle)
-        );
-
-      var frameViewMatrix = arCamera.GetViewMatrix(Screen.orientation);
-      var nativeProjectionMatrix = _UnityMatrixToNarArray(projectionMatrix);
-      var nativeFrameViewMatrix = _UnityMatrixToNarArray(frameViewMatrix);
-
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle =
-          _SemanticBuffer_Interpolate
-          (
-            _nativeHandle,
-            nativeProjectionMatrix,
-            nativeFrameViewMatrix,
-            backProjectionDistance
-          );
-
-        return new _NativeSemanticBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-#pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-      }
-    }
-
-    public ISemanticBuffer FitToViewport
-    (
-      int viewportWidth,
-      int viewportHeight
-    )
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle = _SemanticBuffer_FitToViewport
-        (
-          _nativeHandle,
-          viewportWidth,
-          viewportHeight
-        );
-
-        return new _NativeSemanticBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-#pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-      }
-    }
-
-    public UInt32 Sample(Vector2 uv)
-    {
-      var w = (int)Width;
-      var h = (int)Height;
-
-      var x = Mathf.Clamp(Mathf.RoundToInt(uv.x * w - 0.5f), 0, w - 1);
-      var y = Mathf.Clamp(Mathf.RoundToInt(uv.y * h - 0.5f), 0, h - 1);
-
-      return Data[x + w * y];
-    }
-
-    public UInt32 Sample(Vector2 uv, Matrix4x4 transform)
-    {
-      var w = (int)Width;
-      var h = (int)Height;
-
-      var st = transform * new Vector4(uv.x, uv.y, 1.0f, 1.0f);
-      var sx = st.x / st.z;
-      var sy = st.y / st.z;
-
-      var x = Mathf.Clamp(Mathf.RoundToInt(sx * w - 0.5f), 0, w - 1);
-      var y = Mathf.Clamp(Mathf.RoundToInt(sy * h - 0.5f), 0, h - 1);
-
-      return Data[x + w * y];
-    }
-
-    protected override void _GetViewMatrix(float[] outViewMatrix)
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _SemanticBuffer_GetView(_nativeHandle, outViewMatrix);
-#pragma warning disable 0162
-      else
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-    }
-
-    protected override void _GetIntrinsics(float[] outVector)
-    {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _SemanticBuffer_GetIntrinsics(_nativeHandle, outVector);
-#pragma warning disable 0162
-      else
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      var newHandle = _SemanticBuffer_GetCopy(_nativeHandle);
+      return new _NativeSemanticBuffer(newHandle, _worldScale, Intrinsics);
     }
 
     protected override void _OnRelease()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _SemanticBuffer_Release(_nativeHandle);
-#pragma warning disable 0162
-      else
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      _SemanticBuffer_Release(_nativeHandle);
+    }
+
+    protected override void _GetViewMatrix(float[] outViewMatrix)
+    {
+      _SemanticBuffer_GetView(_nativeHandle, outViewMatrix);
+    }
+
+    protected override void _GetIntrinsics(float[] outVector)
+    {
+      _SemanticBuffer_GetIntrinsics(_nativeHandle, outVector);
     }
 
     protected override IntPtr _GetDataAddress()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_GetDataAddress(_nativeHandle);
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_GetDataAddress(_nativeHandle);
     }
 
     private static uint GetNativeWidth(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_GetWidth(nativeHandle);
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_GetWidth(nativeHandle);
     }
 
     private static uint GetNativeHeight(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_GetHeight(nativeHandle);
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_GetHeight(nativeHandle);
     }
-
 
     private static bool IsNativeKeyframe(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _SemanticBuffer_IsKeyframe(nativeHandle);
-#pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
+      return _SemanticBuffer_IsKeyframe(nativeHandle);
     }
 
     [DllImport(_ARDKLibrary.libraryName)]
@@ -511,12 +285,6 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
 
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern UInt32 _SemanticBuffer_GetNumberChannels(IntPtr nativeHandle);
-
-    [DllImport(_ARDKLibrary.libraryName)]
-    private static extern float _SemanticBuffer_GetNearDistance(IntPtr nativeHandle);
-
-    [DllImport(_ARDKLibrary.libraryName)]
-    private static extern float _SemanticBuffer_GetFarDistance(IntPtr nativeHandle);
 
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern bool _SemanticBuffer_GetNames
@@ -599,25 +367,5 @@ namespace Niantic.ARDK.AR.Awareness.Semantics
 
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern IntPtr _SemanticBuffer_GetCopy(IntPtr nativeHandle);
-
-    [DllImport(_ARDKLibrary.libraryName)]
-    private static extern IntPtr _SemanticBuffer_RotateToScreenOrientation(IntPtr nativeHandle);
-
-    [DllImport(_ARDKLibrary.libraryName)]
-    private static extern IntPtr _SemanticBuffer_Interpolate
-    (
-      IntPtr nativeHandle,
-      float[] nativeProjectionMatrix,
-      float[] nativeFrameViewMatrix,
-      float backProjectionDistance
-    );
-
-    [DllImport(_ARDKLibrary.libraryName)]
-    private static extern IntPtr _SemanticBuffer_FitToViewport
-    (
-      IntPtr nativeHandle,
-      int viewportWidth,
-      int viewportHeight
-    );
   }
 }

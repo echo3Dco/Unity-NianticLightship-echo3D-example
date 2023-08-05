@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -18,7 +18,7 @@ namespace Niantic.ARDK.AR.VideoFormat
 
     static _NativeARVideoFormat()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private static readonly _WeakValueDictionary<IntPtr, _NativeARVideoFormat> _allVideoFormats =
@@ -27,9 +27,9 @@ namespace Niantic.ARDK.AR.VideoFormat
     internal static _NativeARVideoFormat _FromNativeHandle(IntPtr nativeHandle)
     {
       _StaticMemberValidator._CollectionIsEmptyWhenScopeEnds(() => _allVideoFormats);
-      
+
       #pragma warning disable CS0162
-      if (NativeAccess.Mode != NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode != _NativeAccess.ModeType.Native)
         return new _NativeARVideoFormat(nativeHandle);
       #pragma warning restore CS0162
 
@@ -70,7 +70,7 @@ namespace Niantic.ARDK.AR.VideoFormat
 
     public static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARVideoFormat_Release(nativeHandle);
     }
 
@@ -89,7 +89,7 @@ namespace Niantic.ARDK.AR.VideoFormat
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return (int)_NARVideoFormat_GetFramesPerSecond(_nativeHandle);
 
         #pragma warning disable 0162
@@ -104,7 +104,7 @@ namespace Niantic.ARDK.AR.VideoFormat
       {
         var rawImageResolution = new Int32[2];
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARVideoFormat_GetImageResolution(_nativeHandle, rawImageResolution);
 
         return new Vector2(rawImageResolution[0], rawImageResolution[1]);
@@ -117,7 +117,7 @@ namespace Niantic.ARDK.AR.VideoFormat
       {
         var rawTextureResolution = new Int32[2];
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARVideoFormat_GetTextureResolution(_nativeHandle, rawTextureResolution);
 
         return new Vector2(rawTextureResolution[0], rawTextureResolution[1]);

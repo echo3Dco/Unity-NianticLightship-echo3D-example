@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.Awareness;
 using Niantic.ARDK.AR.Awareness.Depth;
@@ -22,16 +23,16 @@ namespace Niantic.ARDK.Extensions
       /// Take a few samples of the full buffer to
       /// determine the closest occluder on the screen.
       SampleFullScreen = 0,
-      
+
       // Sample the sub-region of the buffer that is directly over
       // the main CG object, to determine the distance of its occluder
       // in the world.
       TrackOccludee = 1
     }
-    
+
     private Camera _camera;
     private ARDepthManager _depthManager;
-    
+
     [SerializeField]
     private AdaptionMode _mode = AdaptionMode.SampleFullScreen;
 
@@ -48,7 +49,7 @@ namespace Niantic.ARDK.Extensions
     {
       _camera = GetComponent<Camera>();
       _depthManager = GetComponent<ARDepthManager>();
-      
+
       if (_mode  == AdaptionMode.TrackOccludee && _occludee == null)
       {
         ARLog._Error("Missing occludee renderer to track.");
@@ -92,8 +93,10 @@ namespace Niantic.ARDK.Extensions
         center = new Vector2(0.5f, 0.5f);
         extents = new Vector2(0.4f, 0.4f);
       }
-      else 
+      else
+      {
         CalculateViewportRectangle(_occludee, _camera, out center, out extents);
+      }
 
       var depth = GetClosestDepth
       (
@@ -103,12 +106,13 @@ namespace Niantic.ARDK.Extensions
         extents
       );
 
+
       // Depth to non-linear
-      processor.InterpolationPreference = 
+      processor.InterpolationPreference =
         (1.0f - depth * AwarenessParameters.ZBufferParams.w) /
         (depth * AwarenessParameters.ZBufferParams.z);
     }
-    
+
     /// Calculates the normalized bounds that encloses
     /// the provided renderer's pixels on the viewport.
     private static void CalculateViewportRectangle
@@ -123,40 +127,19 @@ namespace Niantic.ARDK.Extensions
       var inCenter = bounds.center;
       var inExtents = bounds.extents;
 
+      var inPlusOut = inCenter + inExtents;
+      var inMinusOut = inCenter - inExtents;
+
       Vector3[] points =
       {
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x + inExtents.x, inCenter.y + inExtents.y, inCenter.z + inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x + inExtents.x, inCenter.y + inExtents.y, inCenter.z - inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x + inExtents.x, inCenter.y - inExtents.y, inCenter.z + inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x + inExtents.x, inCenter.y - inExtents.y, inCenter.z - inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x - inExtents.x, inCenter.y + inExtents.y, inCenter.z + inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x - inExtents.x, inCenter.y + inExtents.y, inCenter.z - inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x - inExtents.x, inCenter.y - inExtents.y, inCenter.z + inExtents.z)
-        ),
-        usingCamera.WorldToScreenPoint
-        (
-          new Vector3(inCenter.x - inExtents.x, inCenter.y - inExtents.y, inCenter.z - inExtents.z)
-        ),
+        usingCamera.WorldToScreenPoint(inPlusOut),
+        usingCamera.WorldToScreenPoint(new Vector3(inPlusOut.x, inPlusOut.y, inMinusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inPlusOut.x, inMinusOut.y, inPlusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inPlusOut.x, inMinusOut.y, inMinusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inMinusOut.x, inPlusOut.y, inPlusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inMinusOut.x, inPlusOut.y, inMinusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inMinusOut.x, inMinusOut.y, inPlusOut.z)),
+        usingCamera.WorldToScreenPoint(new Vector3(inMinusOut.x, inMinusOut.y, inMinusOut.z)),
       };
 
       var xMin = float.MaxValue;
@@ -181,13 +164,13 @@ namespace Niantic.ARDK.Extensions
           yMax = point.y;
       }
 
-      var widthNormalized = (xMax - xMin) / Screen.width;
-      var heightNormalized = (yMax - yMin) / Screen.height;
+      var widthNormalized = (xMax - xMin) / usingCamera.pixelWidth;
+      var heightNormalized = (yMax - yMin) / usingCamera.pixelHeight;
       extents = new Vector2(widthNormalized / 2.0f, heightNormalized / 2.0f);
       center = new Vector2
       (
-        (xMin / Screen.width) + extents.x,
-        (yMin / Screen.height) + extents.y
+        (xMin / usingCamera.pixelWidth) + extents.x,
+        (yMin / usingCamera.pixelHeight) + extents.y
       );
     }
 

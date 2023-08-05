@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -8,14 +8,33 @@ using Niantic.ARDK.AR.Configuration;
 
 namespace Niantic.ARDK.Extensions
 {
-  // Enabling this component while an ARSession is already running
-  // will potentially cause the ARSession to re-run.
+  /// Extension for UnityLifecycleDriver that allows inheritors to modify the ARSession's
+  /// configuration, through the use of ARSessionChangesCollector. Configuration info
+  /// is asked for by the ARSession whenever it runs, and this class may additionally be used
+  /// to update the configuration after the session has already ran.
   public abstract class ARConfigChanger:
     UnityLifecycleDriver
   {
-    private _ARSessionChangesCollector _changesCollector;
+    private ARSessionChangesCollector _changesCollector;
 
     internal event Action _ConfigurationChanged;
+    
+    /// Inheritors should override this to modify session configuration settings based
+    /// on their script's needs.
+    /// 
+    /// @note This is executed as a result of the ARSession being run, which may or may not be
+    ///   triggered by a call to RaiseConfigurationChanged().
+    public abstract void ApplyARConfigurationChange
+    (
+      ARSessionChangesCollector.ARSessionRunProperties properties
+    );
+    
+    /// Inheritors should call this function to alert the session that the configuration
+    /// has changed, and will result in ApplyARConfigurationChange() being called.
+    protected void RaiseConfigurationChanged()
+    {
+      _ConfigurationChanged?.Invoke();
+    }
 
     protected override void InitializeImpl()
     {
@@ -32,18 +51,13 @@ namespace Niantic.ARDK.Extensions
       _changesCollector?.Unregister(this);
     }
 
-    protected void RaiseConfigurationChanged()
-    {
-      _ConfigurationChanged?.Invoke();
-    }
-
     private void SetConfigChangesCollector(AnyARSessionInitializedArgs args)
     {
       var arSession = (_IARSession) args.Session;
-      _changesCollector = arSession._ARSessionChangesCollector;
+      _changesCollector = arSession.ARSessionChangesCollector;
       _changesCollector.Register(this);
 
-      // The session's _ARSessionChangesCollector is destroyed when the session is disposed.
+      // The session's ARSessionChangesCollector is destroyed when the session is disposed.
       arSession.Deinitialized +=
         _ =>
         {
@@ -51,10 +65,5 @@ namespace Niantic.ARDK.Extensions
           _changesCollector = null;
         };
     }
-
-    internal abstract void _ApplyARConfigurationChange
-    (
-      _ARSessionChangesCollector._ARSessionRunProperties properties
-    );
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 namespace Niantic.ARDK
 {
@@ -21,8 +21,7 @@ namespace Niantic.ARDK
     /// AR data and networking responses are completely code based and contained in the Unity Editor.
     Mock,
 
-    /// Pre-recorded AR data and networking responses are played back
-    /// @note This is an experimental feature
+    /// AR data is sourced from a Playback dataset. Networking is not supported in this mode.
     Playback
   }
 }

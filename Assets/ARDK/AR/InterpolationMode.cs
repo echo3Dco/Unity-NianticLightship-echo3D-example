@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 namespace Niantic.ARDK.AR
 {
   /// The amount of synchronization with the camera pose to apply to each awareness buffer. Currently,

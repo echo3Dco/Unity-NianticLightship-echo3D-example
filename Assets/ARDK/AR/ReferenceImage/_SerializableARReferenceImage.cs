@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using UnityEngine;
@@ -14,10 +14,10 @@ namespace Niantic.ARDK.AR.ReferenceImage
       Name = name;
       PhysicalSize = physicalSize;
     }
-    
+
     public string Name { get; set; }
-    public Vector2 PhysicalSize { get; private set; }
-    
+    public Vector2 PhysicalSize { get; set; }
+
     void IDisposable.Dispose()
     {
       // Do nothing. This implementation of IARReferenceImage is fully managed.

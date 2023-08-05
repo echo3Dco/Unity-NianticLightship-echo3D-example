@@ -1,8 +1,6 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.Camera;
@@ -15,10 +13,9 @@ using UnityEngine;
 
 namespace Niantic.ARDK.AR.Awareness
 {
-  internal abstract class _NativeAwarenessBufferBase<T>: 
+  internal abstract class _NativeAwarenessBufferBase<T>:
     _AwarenessBufferBase,
-    IDataBuffer<T>,
-    IDisposable
+    IDataBuffer<T>
   where T: struct
   {
     protected readonly float _worldScale = 0;
@@ -27,7 +24,11 @@ namespace Niantic.ARDK.AR.Awareness
     private long _consumedUnmanagedMemory;
     private Matrix4x4? _cacheViewMatrix = null;
     private CameraIntrinsics? _cachedIntrinsics = null;
+
     private NativeArray<T> _data;
+#if UNITY_EDITOR
+    private AtomicSafetyHandle? _safetyHandle;
+#endif
 
     protected _NativeAwarenessBufferBase
     (
@@ -40,6 +41,8 @@ namespace Niantic.ARDK.AR.Awareness
     )
       : base(width, height, isKeyframe, intrinsics)
     {
+      _NativeAccess.AssertNativeAccessValid();
+
       _worldScale = worldScale;
       _nativeHandle = handle;
 
@@ -61,13 +64,49 @@ namespace Niantic.ARDK.AR.Awareness
           if (!_data.IsCreated)
           {
             UInt32 size = Width * Height;
-            _data = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>
-              (_GetDataAddress().ToPointer(), (int)size, Allocator.None);
+            _data =
+              NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>
+              (
+                _GetDataAddress().ToPointer(),
+                (int)size,
+                Allocator.None
+              );
+
+#if UNITY_EDITOR
+            _safetyHandle = AtomicSafetyHandle.Create();
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref _data, _safetyHandle.Value);
+#endif
           }
 
           return _data;
         }
       }
+    }
+
+    public T Sample(Vector2 uv)
+    {
+      var w = (int)Width;
+      var h = (int)Height;
+
+      var x = Mathf.Clamp(Mathf.RoundToInt(uv.x * w - 0.5f), 0, w - 1);
+      var y = Mathf.Clamp(Mathf.RoundToInt(uv.y * h - 0.5f), 0, h - 1);
+
+      return Data[x + w * y];
+    }
+
+    public T Sample(Vector2 uv, Matrix4x4 transform)
+    {
+      var w = (int)Width;
+      var h = (int)Height;
+
+      var st = transform * new Vector4(uv.x, uv.y, 1.0f, 1.0f);
+      var sx = st.x / st.z;
+      var sy = st.y / st.z;
+
+      var x = Mathf.Clamp(Mathf.RoundToInt(sx * w - 0.5f), 0, w - 1);
+      var y = Mathf.Clamp(Mathf.RoundToInt(sy * h - 0.5f), 0, h - 1);
+
+      return Data[x + w * y];
     }
 
     public override Matrix4x4 ViewMatrix
@@ -134,6 +173,13 @@ namespace Niantic.ARDK.AR.Awareness
         GC.SuppressFinalize(this);
         GC.RemoveMemoryPressure(_consumedUnmanagedMemory);
         _nativeHandle = IntPtr.Zero;
+
+#if UNITY_EDITOR
+        if (_safetyHandle.HasValue)
+          AtomicSafetyHandle.Release(_safetyHandle.Value);
+
+        _safetyHandle = null;
+#endif
       }
     }
 

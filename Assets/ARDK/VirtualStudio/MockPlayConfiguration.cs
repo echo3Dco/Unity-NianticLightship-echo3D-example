@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -27,7 +27,7 @@ namespace Niantic.ARDK.VirtualStudio
 
     private MockArdkPlayerProfile[] _activeProfiles;
 
-    private _IVirtualStudioManager _virtualStudioManager;
+    private _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
     [NonSerialized]
     internal bool _Initialized;
@@ -76,14 +76,14 @@ namespace Niantic.ARDK.VirtualStudio
     /// Constructs the required ARSession, MultipeerNetworking, and ARNetworking sessions for all
     /// the mock players as defined in the list of MockArdkPlayerProfiles.
     /// </summary>
-    internal void _Initialize(_IVirtualStudioManager virtualStudioManager = null)
+    internal void _Initialize(_IVirtualStudioSessionsManager virtualStudioSessionsManager = null)
     {
       if (_Initialized)
         return;
 
       ARLog._DebugFormat("Initializing all mock players in {0}", objs: name);
       _Initialized = true;
-      _virtualStudioManager = virtualStudioManager ?? _VirtualStudioManager.Instance;
+      _virtualStudioSessionsManager = virtualStudioSessionsManager ?? _VirtualStudioSessionsManager.Instance;
 
       var activeProfiles = new List<MockArdkPlayerProfile>();
 
@@ -97,7 +97,7 @@ namespace Niantic.ARDK.VirtualStudio
       }
 
       _activeProfiles = activeProfiles.ToArray();
-      _virtualStudioManager.InitializeForConfiguration(this);
+      _virtualStudioSessionsManager.InitializeForConfiguration(this);
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ namespace Niantic.ARDK.VirtualStudio
       if (!_Initialized)
         _Initialize();
 
-      return _virtualStudioManager.GetPlayerWithPeer(peer);
+      return _virtualStudioSessionsManager.GetPlayerWithPeer(peer);
     }
 
     /// <summary>

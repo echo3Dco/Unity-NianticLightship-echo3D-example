@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -6,15 +6,12 @@ using System.Collections.Generic;
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.Networking;
 using Niantic.ARDK.AR.Networking.ARNetworkingEventArgs;
-using Niantic.ARDK.AR.Networking.NetworkAnchors;
 using Niantic.ARDK.Networking;
 using Niantic.ARDK.Networking.MultipeerNetworkingEventArgs;
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Collections;
 using Niantic.ARDK.Utilities.Logging;
 using Niantic.ARDK.Utilities.Marker;
-using Niantic.ARDK.VirtualStudio.Networking;
-using Niantic.ARDK.VirtualStudio.Remote;
 using Niantic.ARDK.VirtualStudio.Remote.Data;
 
 using UnityEngine;
@@ -30,6 +27,7 @@ namespace Niantic.ARDK.VirtualStudio.Remote
     private bool _isInitialized;
     private bool _isDisposed;
 
+#pragma warning disable 0618
     internal _RemoteEditorARNetworking(IARSession arSession, IMultipeerNetworking networking)
     {
       ARSession = arSession;
@@ -88,7 +86,8 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       else
         _HandleNetworkingAboutToBeDestroyed(null);
     }
-
+#pragma warning restore 0618
+    
     /// <inheritdoc />
     public IMultipeerNetworking Networking { get; private set; }
 

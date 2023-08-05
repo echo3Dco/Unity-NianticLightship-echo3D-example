@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.ObjectModel;
@@ -31,7 +31,7 @@ namespace Niantic.ARDK.AR.PlaneGeometry
 
     private static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARPlaneGeometry_Release(nativeHandle);
     }
 
@@ -67,7 +67,7 @@ namespace Niantic.ARDK.AR.PlaneGeometry
           return _vertices;
 
         var vertices = EmptyArray<Vector3>.Instance;
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {
@@ -112,7 +112,7 @@ namespace Niantic.ARDK.AR.PlaneGeometry
           return _textureCoordinates;
 
         var textureCoordinates = EmptyArray<Vector2>.Instance;
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {
@@ -155,7 +155,7 @@ namespace Niantic.ARDK.AR.PlaneGeometry
           return _triangleIndices;
 
         var triangleIndices = EmptyArray<Int16>.Instance;
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {
@@ -195,7 +195,7 @@ namespace Niantic.ARDK.AR.PlaneGeometry
           return _boundaryVertices;
 
         var boundaryVertices = EmptyArray<Vector3>.Instance;
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {

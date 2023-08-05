@@ -1,4 +1,4 @@
-﻿// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.ObjectModel;
@@ -19,8 +19,8 @@ namespace Niantic.ARDK.AR.Awareness.Depth
     ReadOnlyCollection<Vector3> Points { get; }
 
     /// The width of the depth point cloud, from the camera's perspective
-    UInt32 Width { get; }
-    
+     UInt32 Width { get; }
+
     /// The height of the depth point cloud, from the camera's perspective
     UInt32 Height { get; }
   }

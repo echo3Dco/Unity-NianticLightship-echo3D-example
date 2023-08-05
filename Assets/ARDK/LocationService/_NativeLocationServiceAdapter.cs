@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -62,15 +62,16 @@ namespace Niantic.ARDK.LocationService
     {
       if (_nativeHandle != IntPtr.Zero)
       {
+        var info = args.LocationInfo;
         _LocationServiceSession_LocationUpdate
         (
           _nativeHandle,
-          args.Altitude,
-          args.HorizontalAccuracy,
-          args.Latitude,
-          args.Longitude,
-          args.Timestamp,
-          args.VerticalAccuracy
+          (float)info.Altitude,
+          (float)info.HorizontalAccuracy,
+          (float)info.Coordinates.Latitude,
+          (float)info.Coordinates.Longitude,
+          info.Timestamp,
+          (float)info.VerticalAccuracy
         );
       }
     }
@@ -94,7 +95,7 @@ namespace Niantic.ARDK.LocationService
         );
       }
     }
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern IntPtr _LocationServiceSession_Init(byte[] stageIdentifier);
 
@@ -113,7 +114,7 @@ namespace Niantic.ARDK.LocationService
       double timestamp,
       float verticalAccuracy
     );
-  
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern IntPtr _LocationServiceSession_CompassUpdate
     (
@@ -122,7 +123,7 @@ namespace Niantic.ARDK.LocationService
       float headingAccuracy,
       double timestamp
     );
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern void _LocationServiceSession_Release(IntPtr nativeHandle);
   }

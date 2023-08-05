@@ -45,9 +45,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _manageUsingUnityLifecycle: 1
   _targetFrameRate: 20
-  _meshingRadius: 0
   _targetBlockSize: 1.4
-  _parseMeshData: 1
+  _meshDecimationThreshold: 0
+  _meshingMode: 0
+  UseCustomMeshingMode: 0
+  _meshingRangeMax: 5
+  _voxelSize: 0.025
   _generateUnityMeshes: 1
   _meshPrefab: {fileID: 2988715159741781419, guid: b79f4734d3e2462186a55d546e80cfb4,
     type: 3}

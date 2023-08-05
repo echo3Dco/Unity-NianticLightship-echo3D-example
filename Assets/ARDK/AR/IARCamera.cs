@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -85,7 +85,20 @@ namespace Niantic.ARDK.AR
     );
 
     /// <summary>
-    /// @brief Returns a transform matrix for converting from world space to camera space.
+    /// @brief Returns a transform matrix for converting from world space to camera space. 
+    /// This matrix is in a left-handed coordinate system with the camera's forward direction 
+    /// along the positive Z-axis. This is unlike Unity's 
+    /// <a href="https://docs.unity3d.com/ScriptReference/Camera-worldToCameraMatrix.html">camera worldToCameraMatrix</a>, 
+    /// which uses a OpenGL-style, right-handed coordinate system with the camera's forward 
+    /// direction along the negative Z-axis.
+    /// Convert from this coordinate system to the Unity/OpenGL system by negating the Z-axis, for example:
+    /// @code
+    /// var UnityViewMatrix = ARDKViewMatrix;
+    /// UnityViewMatrix.m20 *= -1.0f;
+    /// UnityViewMatrix.m21 *= -1.0f;
+    /// UnityViewMatrix.m22 *= -1.0f;
+    /// UnityViewMatrix.m23 *= -1.0f;  
+    /// @endcode
     /// @param orientation The current orientation of the interface.
     /// @note Returns a pre-calculated value in Remote Debugging.
     /// </summary>

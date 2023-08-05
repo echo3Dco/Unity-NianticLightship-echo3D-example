@@ -1,10 +1,9 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
 
 using Niantic.ARDK.AR.Networking.ARNetworkingEventArgs;
-using Niantic.ARDK.AR.Networking.NetworkAnchors;
 using Niantic.ARDK.Networking;
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Marker;

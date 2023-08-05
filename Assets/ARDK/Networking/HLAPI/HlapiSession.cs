@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
@@ -41,10 +41,12 @@ namespace Niantic.ARDK.Networking.HLAPI
 
     private readonly TransportType[] _transportTypeList =
     {
+#pragma warning disable 612, 618
       TransportType.ReliableOrdered,
       TransportType.ReliableUnordered,
       TransportType.UnreliableOrdered,
       TransportType.UnreliableUnordered
+#pragma warning restore 612, 618
     };
 
     private readonly MemoryStream _cachedStream = new MemoryStream(1024);
@@ -410,9 +412,11 @@ namespace Niantic.ARDK.Networking.HLAPI
         else
         {
           //If the transport type is not reliable, do not cache the data
-          bool mustSkip = 
+#pragma warning disable 612, 618
+          bool mustSkip =
             mode.Transport != TransportType.ReliableOrdered &&
             mode.Transport != TransportType.ReliableUnordered;
+#pragma warning restore 612, 618 
 
           if (mustSkip)
             continue;

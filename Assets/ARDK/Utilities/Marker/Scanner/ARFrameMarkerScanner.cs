@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -27,6 +27,19 @@ namespace Niantic.ARDK.Utilities.Marker
   public sealed class ARFrameMarkerScanner:
     IMarkerScanner
   {
+    public enum TextureType
+    {
+      /// Texture format is determined by platform (YCbCr for iOS, BGRA for Android or in-editor).
+      Platform,
+
+      /// YCbCr format. This value is only valid on iOS devices.
+      YCbCr,
+
+      /// BGRA format. This value is valid on Android devices and in-editor.
+      BGRA
+    }
+
+
     public event ArdkEventHandler<ARFrameMarkerScannerReadyArgs> Ready;
     public event ArdkEventHandler<ARFrameMarkerScannerStatusChangedArgs> StatusChanged;
     public event ArdkEventHandler<ARFrameMarkerScannerGotResultArgs> GotResult;
@@ -34,7 +47,7 @@ namespace Niantic.ARDK.Utilities.Marker
     // Store references to the AR objects utilized by the scanner
     private readonly IARSession _arSession;
     private ICoordinatedClock _coordinatedClock;
-    private ARCameraFeed.TextureType _textureType;
+    private TextureType _textureType;
 
     // Store information about last image / results
     private IARCamera _arCamera;
@@ -125,9 +138,9 @@ namespace Niantic.ARDK.Utilities.Marker
     private void InitializeFrameSettings()
     {
 #if AR_NATIVE_SUPPORT && UNITY_ANDROID
-      _textureType = ARCameraFeed.TextureType.BGRA;
+      _textureType = TextureType.BGRA;
 #else
-      _textureType = ARCameraFeed.TextureType.YCbCr;
+      _textureType = TextureType.YCbCr;
 #endif
     }
 
@@ -223,7 +236,7 @@ namespace Niantic.ARDK.Utilities.Marker
         try
         {
           ConvertTextureAndDecode();
-          
+
           if (_result == null)
             continue;
 
@@ -250,7 +263,7 @@ namespace Niantic.ARDK.Utilities.Marker
       var rawIndex = 0;
       for (var idx = 0; idx < _rawWidth * _rawHeight; idx++)
       {
-        if (_textureType == ARCameraFeed.TextureType.YCbCr)
+        if (_textureType == TextureType.YCbCr)
         {
           // Use Y value in YCbCr texture to create a greyscale texture
           var val = _rawPixels[idx];
@@ -362,7 +375,7 @@ namespace Niantic.ARDK.Utilities.Marker
         // If background thread OFF, do the decode main thread with a pause for UI
         bool shouldParse = !_settings.ScannerBackgroundThread &&
           _mainThreadLastDecode < Time.realtimeSinceStartup - _settings.ScannerDecodeInterval;
-        
+
         if (shouldParse)
         {
           TryToParse();
@@ -374,11 +387,6 @@ namespace Niantic.ARDK.Utilities.Marker
     public override string ToString()
     {
       return "[ARFrameMarkerScanner]";
-    }
-
-    internal void TestOnly_SetTextureType(ARCameraFeed.TextureType newType)
-    {
-      _textureType = newType;
     }
   }
 }

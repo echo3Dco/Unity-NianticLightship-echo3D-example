@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -25,7 +25,6 @@ namespace Niantic.ARDK.Rendering
     public event Action<_VirtualCamera> OnPreRender = camera => {};
     public event Action<_VirtualCamera> OnPostRender = camera => {};
 
-    private Action<Camera> _setupRealCamera;
     private RealCamera _realCamera;
 
     private const int GpuCacheLineSize = 128;

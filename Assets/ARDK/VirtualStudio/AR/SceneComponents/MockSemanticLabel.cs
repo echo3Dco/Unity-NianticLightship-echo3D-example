@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System;
 using System.ComponentModel;
 
@@ -11,11 +12,33 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 {
   /// Add this to any mesh in the Editor in order to have it semantically
   /// segmented as a certain channel.
+  [RequireComponent(typeof(MeshRenderer))]
   public class MockSemanticLabel: MonoBehaviour
   {
+    // Ordering of channel names here is not guaranteed to be the same as on live device.
+    // The addition of new channels may cause indices to shift, so it is recommended to use
+    // names rather than indices in your application code when referencing channels.
     public enum ChannelName
     {
-      sky, ground, artificial_ground, water, building, foliage, grass
+      sky,
+      ground,
+      artificial_ground,
+      water,
+      building,
+      foliage,
+      grass,
+      natural_ground,
+      person,
+      flower_experimental,
+      tree_trunk_experimental,
+      pet_experimental,
+      sand_experimental,
+      tv_experimental,
+      dirt_experimental,
+      vehicle_experimental,
+      food_experimental,
+      loungeable_experimental,
+      snow_experimental
     }
 
     public ChannelName Channel;
@@ -29,8 +52,8 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 
       materialPropertyBlock = new MaterialPropertyBlock();
       materialPropertyBlock.SetColor("PackedColor", color);
-      materialPropertyBlock.SetColor("DebugColor", _debugColors[(int)Channel]);
-      GetComponent<Renderer>().SetPropertyBlock(materialPropertyBlock);
+      // materialPropertyBlock.SetColor("DebugColor", _debugColors[(int)Channel]);
+      GetComponent<MeshRenderer>().SetPropertyBlock(materialPropertyBlock);
 
       ARLog._DebugFormat("GameObject: {0} - Channel: {1} - Bits: {2}", false, gameObject.name, Channel, ToBinaryString(bits));
     }
@@ -114,7 +137,18 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     }
 
 #region DEBUG
-    private static Color[] _debugColors = { Color.blue, new Color(165/255f, 42/255f, 42/255f, 1), Color.gray, Color.cyan, Color.yellow, Color.red, Color.green};
+    private static Color[] _debugColors =
+    {
+      Color.blue,
+      new Color(165 / 255f, 42 / 255f, 42 / 255f, 1), // brown
+      Color.gray,
+      Color.cyan,
+      Color.yellow,
+      Color.red,
+      Color.green,
+      new Color(207 / 255f, 171 / 255f, 132 / 255f, 1), // light brown
+      new Color(167 / 255f, 127 / 255f, 227 / 255f, 1), // lilac
+    };
 #endregion
   }
 }

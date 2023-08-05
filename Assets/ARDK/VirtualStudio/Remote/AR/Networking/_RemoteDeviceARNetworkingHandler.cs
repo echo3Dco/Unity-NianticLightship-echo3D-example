@@ -1,18 +1,12 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.Networking;
 using Niantic.ARDK.AR.Networking.ARNetworkingEventArgs;
-using Niantic.ARDK.AR.Networking.NetworkAnchors;
 using Niantic.ARDK.Networking;
-using Niantic.ARDK.Utilities;
-using Niantic.ARDK.Utilities.Collections;
 using Niantic.ARDK.Utilities.Logging;
-using Niantic.ARDK.Utilities.Marker;
-using Niantic.ARDK.VirtualStudio.Remote;
 using Niantic.ARDK.VirtualStudio.Remote.Data;
 
 using UnityEngine;

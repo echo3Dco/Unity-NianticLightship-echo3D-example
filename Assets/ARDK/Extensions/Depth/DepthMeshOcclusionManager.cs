@@ -1,20 +1,6 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
-
-using Niantic.ARDK.AR.Awareness.Depth;
-using Niantic.ARDK.AR.Awareness.Semantics;
-
-using Niantic.ARDK.AR;
-
-using Niantic.ARDK.AR.Awareness;
-using Niantic.ARDK.AR.Awareness.Depth.Effects;
-using Niantic.ARDK.AR.Depth;
-using Niantic.ARDK.AR.Depth.Effects;
-using Niantic.ARDK.Internals.EditorUtilities;
-using Niantic.ARDK.Utilities.Logging;
-
-using UnityEngine;
 
 namespace Niantic.ARDK.Extensions.Depth
 {
@@ -24,7 +10,7 @@ namespace Niantic.ARDK.Extensions.Depth
   /// that then performs the actual shader occlusion. Both precision options of
   /// DepthMeshOcclusionEffect are available, and can be toggled between.
   /// </summary>
-  [Obsolete("Use the ARDepthManager's ScreenSpaceMesh instead")]
+  [Obsolete("Use the ARDepthManager with its OcclusionMode property set to ScreenSpaceMesh instead.")]
   public class DepthMeshOcclusionManager:
     UnityLifecycleDriver
   {

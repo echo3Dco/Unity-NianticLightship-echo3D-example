@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -19,7 +19,7 @@ namespace Niantic.ARDK.AR.SLAM
 
     static _NativeARMap()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private static readonly _WeakValueDictionary<_CppAddressAndScale, _NativeARMap> _allMaps =
@@ -28,7 +28,7 @@ namespace Niantic.ARDK.AR.SLAM
     internal static _NativeARMap _FromNativeHandle(IntPtr nativeHandle, float worldScale)
     {
       _StaticMemberValidator._CollectionIsEmptyWhenScopeEnds(() => _allMaps);
-      
+
       var cppAddress = _NARMapViz_GetCppAddress(nativeHandle);
       var handleAndScale = new _CppAddressAndScale(cppAddress, worldScale);
 
@@ -70,7 +70,7 @@ namespace Niantic.ARDK.AR.SLAM
 
     internal static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARMapViz_Release(nativeHandle);
     }
 
@@ -113,7 +113,7 @@ namespace Niantic.ARDK.AR.SLAM
       {
         Guid result;
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARMapViz_GetIdentifier(_nativeHandle, out result);
         #pragma warning disable 0162
         else
@@ -130,7 +130,7 @@ namespace Niantic.ARDK.AR.SLAM
       {
         var nativeTransform = new float[16];
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARMapViz_GetTransform(_nativeHandle, nativeTransform);
         #pragma warning disable 0162
         else

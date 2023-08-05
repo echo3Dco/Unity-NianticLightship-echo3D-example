@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 #if (UNITY_IOS || UNITY_ANDROID) && !UNITY_EDITOR
 using T = Niantic.ARDK.AR.Configuration._NativeARWorldTrackingConfiguration;
@@ -37,6 +37,7 @@ namespace Niantic.ARDK.AR.Configuration
       // Depth
       BooleanSerializer.Instance.Serialize(serializer, item.IsDepthEnabled);
       CompressedUInt32Serializer.Instance.Serialize(serializer, item.DepthTargetFrameRate);
+      BooleanSerializer.Instance.Serialize(serializer, item.IsDepthPointCloudEnabled);
 
       // Semantics
       BooleanSerializer.Instance.Serialize(serializer, item.IsSemanticSegmentationEnabled);
@@ -47,9 +48,11 @@ namespace Niantic.ARDK.AR.Configuration
       CompressedUInt32Serializer.Instance.Serialize(serializer, item.MeshingTargetFrameRate);
       FloatSerializer.Instance.Serialize(serializer, item.MeshingTargetBlockSize);
 
-      // Mapping
-      EnumSerializer.ForType<MappingRole>().Serialize(serializer, item.MappingRole);
-      serializer.Serialize(item.MapLayerIdentifier);
+      // Palm Detection
+      BooleanSerializer.Instance.Serialize(serializer, item.IsPalmDetectionEnabled);
+      
+      // Scan Quality
+      BooleanSerializer.Instance.Serialize(serializer, item.IsScanQualityEnabled);
     }
 
     protected override T DoDeserialize(BinaryDeserializer deserializer)
@@ -68,6 +71,7 @@ namespace Niantic.ARDK.AR.Configuration
       // Depth
       result.IsDepthEnabled = BooleanSerializer.Instance.Deserialize(deserializer);
       result.DepthTargetFrameRate = CompressedUInt32Serializer.Instance.Deserialize(deserializer);
+      result.IsDepthPointCloudEnabled = BooleanSerializer.Instance.Deserialize(deserializer);
 
       // Semantics
       result.IsSemanticSegmentationEnabled = BooleanSerializer.Instance.Deserialize(deserializer);
@@ -78,9 +82,11 @@ namespace Niantic.ARDK.AR.Configuration
       result.MeshingTargetFrameRate = CompressedUInt32Serializer.Instance.Deserialize(deserializer);
       result.MeshingTargetBlockSize = FloatSerializer.Instance.Deserialize(deserializer);
 
-      // Mapping
-      result.MappingRole = EnumSerializer.ForType<MappingRole>().Deserialize(deserializer);
-      result.MapLayerIdentifier = (MapLayerIdentifier) deserializer.Deserialize();
+      // Palm Detection
+      result.IsPalmDetectionEnabled = BooleanSerializer.Instance.Deserialize(deserializer);
+      
+      // Scan Quality
+      result.IsScanQualityEnabled = BooleanSerializer.Instance.Deserialize(deserializer);
 
       return result;
     }

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -53,9 +53,9 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 
       arSession.AddMap(serialMap);
 
-      _player = _VirtualStudioManager.Instance.LocalPlayer;
+      _player = _VirtualStudioSessionsManager.Instance.LocalPlayer;
       var networking = _player.Networking;
-      var isHost = networking.Self.Equals(networking.Host);
+      var isHost = networking.Self != null && networking.Self.Equals(networking.Host);
 
       if (isHost)
       {

@@ -1,18 +1,14 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.ComponentModel;
 
 using Niantic.ARDK.AR.ARSessionEventArgs;
 using Niantic.ARDK.VirtualStudio;
 using Niantic.ARDK.VirtualStudio.AR;
 using Niantic.ARDK.Utilities;
-using Niantic.ARDK.VirtualStudio.Remote;
 using Niantic.ARDK.Utilities.Logging;
-
-using UnityEngine;
 
 namespace Niantic.ARDK.AR
 {
@@ -28,12 +24,12 @@ namespace Niantic.ARDK.AR
     ///   The identifier used by the C++ library to connect all related components.
     ///
     /// @returns The created session, or throws if it was not possible to create a session.
-    public static IARSession Create(Guid stageIdentifier = default(Guid))
+    public static IARSession Create(Guid stageIdentifier = default)
     {
-      return _Create(null, stageIdentifier);
+      return Create(_VirtualStudioLauncher.SelectedMode, stageIdentifier);
     }
 
-    /// Create an ARSession with the specified RuntimeEnvironment.
+    /// Create an ARSession for the specified RuntimeEnvironment.
     ///
     /// @param env
     ///   The env used to create the session for.
@@ -41,24 +37,18 @@ namespace Niantic.ARDK.AR
     ///   The identifier used by the C++ library to connect all related components.
     ///
     /// @returns The created session, or null if it was not possible to create a session.
-    public static IARSession Create(RuntimeEnvironment env, Guid stageIdentifier = default(Guid))
+    public static IARSession Create(RuntimeEnvironment env, Guid stageIdentifier = default)
     {
-      if (stageIdentifier == default(Guid))
+      if (env == RuntimeEnvironment.Default)
+        return Create(_VirtualStudioLauncher.SelectedMode, stageIdentifier);
+
+      if (stageIdentifier == default)
         stageIdentifier = Guid.NewGuid();
 
       IARSession result;
       switch (env)
       {
-        case RuntimeEnvironment.Default:
-          // Return early here or else _InvokeSessionInitialized will get called twice
-          return Create(stageIdentifier);
-
         case RuntimeEnvironment.LiveDevice:
-  #pragma warning disable CS0162
-          if (NativeAccess.Mode != NativeAccess.ModeType.Native && NativeAccess.Mode != NativeAccess.ModeType.Testing)
-            return null;
-  #pragma warning restore CS0162
-
           if (_activeSession != null)
             throw new InvalidOperationException("There's another session still active.");
 
@@ -66,53 +56,20 @@ namespace Niantic.ARDK.AR
           break;
 
         case RuntimeEnvironment.Remote:
-          if (!_RemoteConnection.IsEnabled)
-            return null;
-
           result = new _RemoteEditorARSession(stageIdentifier);
           break;
 
-        case RuntimeEnvironment.Mock:
-          result = new _MockARSession(stageIdentifier, _VirtualStudioManager.Instance);
+        case RuntimeEnvironment.Playback:
+          result = new _NativeARSession(stageIdentifier, true);
           break;
 
-        case RuntimeEnvironment.Playback:
-          if (_activeSession != null)
-            throw new InvalidOperationException("There's another session still active.");
-          // Enable playback
-          result = new _NativeARSession(stageIdentifier, true);
+        case RuntimeEnvironment.Mock:
+          result = new _MockARSession(stageIdentifier, _VirtualStudioSessionsManager.Instance);
           break;
 
         default:
           throw new InvalidEnumArgumentException(nameof(env), (int)env, env.GetType());
       }
-
-      _InvokeSessionInitialized(result, isLocal: true);
-      return result;
-    }
-
-    ///Create an AR Playback Session.
-    ///
-    /// @param stageIdentifier
-    ///   The identifier used by the C++ library to connect all related components.
-    ///
-    /// @returns The created session, or throws if it was not possible to create a session.
-    /// @note this is an experimental feature
-    public static IARSession CreatePlaybackSession(Guid stageIdentifier = default(Guid))
-    {
-      if (stageIdentifier == default(Guid))
-        stageIdentifier = Guid.NewGuid();
-
-#pragma warning disable CS0162
-      if (NativeAccess.Mode != NativeAccess.ModeType.Native && NativeAccess.Mode != NativeAccess.ModeType.Testing)
-        return null;
-#pragma warning disable CS0162
-
-      if (_activeSession != null)
-        throw new InvalidOperationException("There's another session still active.");
-
-      // Enable playback
-      IARSession result = new _NativeARSession(stageIdentifier, true);
 
       _InvokeSessionInitialized(result, isLocal: true);
       return result;
@@ -151,53 +108,16 @@ namespace Niantic.ARDK.AR
 #else
       new RuntimeEnvironment[]
       {
-        RuntimeEnvironment.Remote, RuntimeEnvironment.Mock
+        RuntimeEnvironment.Remote, RuntimeEnvironment.Playback, RuntimeEnvironment.Mock
       };
 #endif
-
-    /// Tries to create an ARSession of any of the given envs.
-    ///
-    /// @param envs
-    ///   A collection of runtime environments used to create the session for. As not all platforms
-    ///   support all environments, the code will try to create the session for the first
-    ///   environment, then for the second and so on. If envs is null or empty, then the order used
-    ///   is LiveDevice, Remote and finally Mock.
-    /// @param stageIdentifier
-    ///   The identifier used by the C++ library to connect all related components.
-    ///
-    /// @returns The created session, or null if it was not possible to create a session.
-    internal static IARSession _Create
-    (
-      IEnumerable<RuntimeEnvironment> envs = null,
-      Guid stageIdentifier = default(Guid)
-    )
-    {
-      bool triedAtLeast1 = false;
-
-      if (envs != null)
-      {
-        foreach (var env in envs)
-        {
-          var possibleResult = Create(env, stageIdentifier);
-          if (possibleResult != null)
-            return possibleResult;
-
-          triedAtLeast1 = true;
-        }
-      }
-
-      if (!triedAtLeast1)
-        return _Create(_defaultBestMatches, stageIdentifier);
-
-      throw new NotSupportedException("None of the provided envs are supported by this build.");
-    }
 
     internal static IARSession _CreateVirtualStudioManagedARSession
     (
       RuntimeEnvironment env,
       Guid stageIdentifier,
       bool isLocal,
-      _IVirtualStudioManager virtualStudioManager
+      _IVirtualStudioSessionsManager virtualStudioManager
     )
     {
       IARSession result;
@@ -207,7 +127,7 @@ namespace Niantic.ARDK.AR
         case RuntimeEnvironment.Mock:
         {
           if (virtualStudioManager == null)
-            virtualStudioManager = _VirtualStudioManager.Instance;
+            virtualStudioManager = _VirtualStudioSessionsManager.Instance;
 
           result = new _MockARSession(stageIdentifier, virtualStudioManager);
           break;
@@ -244,12 +164,13 @@ namespace Niantic.ARDK.AR
     private static void _InvokeSessionInitialized(IARSession session, bool isLocal)
     {
       var handler = isLocal ? _sessionInitialized : _nonLocalSessionInitialized;
+
       if (handler != null)
       {
         var args = new AnyARSessionInitializedArgs(session, isLocal);
         handler(args);
       }
-
+      
       if (isLocal)
       {
         _StaticMemberValidator._FieldIsNullWhenScopeEnds(() => _activeSession);

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
@@ -28,10 +28,7 @@ namespace Niantic.ARDK.AR.Networking
     private static readonly object _arNetworkingLock = new object();
     private static IARNetworking _arNetworking;
 
-    /// Create an ARNetworking appropriate for the current device.
-    ///
-    /// On a mobile device, the attempted order will be LiveDevice, Remote, and finally Mock.
-    /// In the Unity Editor, the attempted order will be Remote, then Mock.
+    /// Create an ARNetworking appropriate for the current device and/or specified Virtual Studio mode.
     ///
     /// This will also create an ARSession object. If an ARSession object has already been created,
     ///   use the ARNetworkingFactory.Create(IARSession session) API instead.
@@ -42,7 +39,7 @@ namespace Niantic.ARDK.AR.Networking
     /// @returns The created ARNetworking, or throws if it was not possible to create a session.
     public static IARNetworking Create()
     {
-      return _Create(null);
+      return Create(_VirtualStudioLauncher.SelectedMode);
     }
 
     /// Create an ARNetworking with the specified RuntimeEnvironment.
@@ -50,13 +47,32 @@ namespace Niantic.ARDK.AR.Networking
     /// This will also create an ARSession object. If an ARSession object has already been created,
     ///   use the ARNetworkingFactory.Create(IARSession session) API instead.
     ///
-    /// @param env
-    ///   The env used to create the ARNetworking for.
+    /// @param env The env used to create the ARNetworking for.
     ///
     /// @returns The created ARNetworking, or throws if it was not possible to create a session.
     public static IARNetworking Create(RuntimeEnvironment env)
     {
-      return _Create(new List<RuntimeEnvironment>(){env});
+      if (env == RuntimeEnvironment.Default)
+        return Create(_VirtualStudioLauncher.SelectedMode);
+
+      IARSession session;
+      try
+      {
+        session = ARSessionFactory.Create(env);
+      }
+      catch (InvalidOperationException)
+      {
+        var errorMessage =
+          "The ARNetworkingFactory is trying to create an ARSession when one already exists, " +
+          "pass the existing ARSession into ARNetworkingFactory.Create(IARSession session)";
+
+        throw new InvalidOperationException(errorMessage);
+      }
+
+      if (session == null)
+        throw new NotSupportedException("The selected runtime environment is not supported.");
+
+      return Create(session);
     }
 
     /// Creates a new ARNetworking for the given session.
@@ -126,7 +142,7 @@ namespace Niantic.ARDK.AR.Networking
             (
               session,
               networking,
-              _VirtualStudioManager.Instance,
+              _VirtualStudioSessionsManager.Instance,
               isLocal: true
             );
 
@@ -166,42 +182,11 @@ namespace Niantic.ARDK.AR.Networking
       }
     }
 
-    /// Tries to create an ARNetworking of any of the given envs.
-    ///
-    /// @param envs
-    ///   A collection of envs used to create the networking for. As not all platforms support
-    ///   all envs, the code will try to create the networking for the first env, then for the
-    ///   second and so on. If envs is null or empty, then the order used is LiveDevice,
-    ///   Remote and finally Mock.
-    ///
-    /// @returns The created networking, or null if it was not possible to create the object.
-    internal static IARNetworking _Create(IEnumerable<RuntimeEnvironment> envs = null)
-    {
-      IARSession session;
-      try
-      {
-        session = ARSessionFactory._Create(envs);
-      }
-      catch (InvalidOperationException)
-      {
-        var errorMessage =
-          "The ARNetworkingFactory is trying to create an ARSession when one already exists, " +
-          "pass the existing ARSession into ARNetworkingFactory.Create(IARSession session)";
-
-        throw new InvalidOperationException(errorMessage);
-      }
-
-      if (session == null)
-        throw new NotSupportedException("None of the provided runtime environments are supported by this build.");
-
-      return Create(session);
-    }
-
     internal static IARNetworking _CreateVirtualStudioManagedARNetworking
     (
       IARSession arSession,
       IMultipeerNetworking networking,
-      _IVirtualStudioManager virtualStudioManager,
+      _IVirtualStudioSessionsManager virtualStudioSessionsManager,
       bool isLocal
     )
     {
@@ -220,7 +205,7 @@ namespace Niantic.ARDK.AR.Networking
       switch (env)
       {
         case RuntimeEnvironment.Mock:
-          result = new _MockARNetworking(arSession, networking, virtualStudioManager);
+          result = new _MockARNetworking(arSession, networking, virtualStudioSessionsManager);
           break;
 
         case RuntimeEnvironment.Remote:

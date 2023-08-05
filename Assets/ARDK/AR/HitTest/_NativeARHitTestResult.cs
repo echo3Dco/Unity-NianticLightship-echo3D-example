@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -21,7 +21,7 @@ namespace Niantic.ARDK.AR.HitTest
 
     static _NativeARHitTestResult()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private IntPtr _nativeHandle;
@@ -38,7 +38,7 @@ namespace Niantic.ARDK.AR.HitTest
 
     private static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARHitTestResult_Release(nativeHandle);
     }
 
@@ -68,7 +68,7 @@ namespace Niantic.ARDK.AR.HitTest
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return (ARHitTestResultType) _NARHitTestResult_GetType(_nativeHandle);
 
         #pragma warning disable 0162
@@ -81,7 +81,7 @@ namespace Niantic.ARDK.AR.HitTest
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return _NARHitTestResult_GetDistance(_nativeHandle) * WorldScale;
 
         #pragma warning disable 0162
@@ -101,7 +101,7 @@ namespace Niantic.ARDK.AR.HitTest
         {
           var anchorHandle = IntPtr.Zero;
 
-          if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+          if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
             anchorHandle = _NARHitTestResult_GetAnchor(_nativeHandle);
 
           if (anchorHandle == IntPtr.Zero)
@@ -121,7 +121,7 @@ namespace Niantic.ARDK.AR.HitTest
       {
         var nativeTransform = new float[16];
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARHitTestResult_GetLocalTransform(_nativeHandle, nativeTransform);
         #pragma warning disable 0162
         else
@@ -141,7 +141,7 @@ namespace Niantic.ARDK.AR.HitTest
       {
         var nativeTransform = new float[16];
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARHitTestResult_GetWorldTransform(_nativeHandle, nativeTransform);
         #pragma warning disable 0162
         else

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -96,14 +96,6 @@ namespace Niantic.ARDK.Networking
     /// @param value The value to store
     void StorePersistentKeyValue(string key, byte[] value);
 
-    /// <summary>
-    /// Sends the specified data to the ARM server (if connected to an ARM session) with the tag
-    /// @note This is currently undergoing internal development and testing, and will not do anything.
-    /// </summary>
-    /// <param name="tag">Tag that will be sent to the ARM server</param>
-    /// <param name="data">Data that will be sent to the ARM server</param>
-    void SendDataToArm(uint tag, byte[] data);
-
     /// Joins a specific game or session. Games or sessions are linked by `metadata`. Meaning that
     /// in order for two peers to join the same game or session, they must use the same `metadata`
     /// value.
@@ -152,21 +144,5 @@ namespace Niantic.ARDK.Networking
 
     /// Event fired when this object is about to deinitialize.
     event ArdkEventHandler<DeinitializedArgs> Deinitialized;
-
-    /// <summary>
-    /// Event fired when receiving data from an ARM server
-    /// @note This is currently undergoing internal development and testing, and will not be fired.
-    /// </summary>
-    event ArdkEventHandler<DataReceivedFromArmArgs> DataReceivedFromArm;
-
-    /// <summary>
-    /// @note This is currently undergoing internal development and testing, and will not be fired.
-    /// </summary>
-    event ArdkEventHandler<SessionStatusReceivedFromArmArgs> SessionStatusReceivedFromArm;
-
-    /// <summary>
-    /// @note This is currently undergoing internal development and testing, and will not be fired.
-    /// </summary>
-    event ArdkEventHandler<SessionResultReceivedFromArmArgs> SessionResultReceivedFromArm;
   }
 }

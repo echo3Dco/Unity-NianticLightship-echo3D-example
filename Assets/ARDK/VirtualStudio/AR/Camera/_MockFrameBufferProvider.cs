@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -10,7 +10,7 @@ using Niantic.ARDK.AR.Awareness.Depth;
 using Niantic.ARDK.AR.Awareness.Semantics;
 using Niantic.ARDK.AR.Frame;
 using Niantic.ARDK.AR.Image;
-
+using Niantic.ARDK.Rendering;
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Logging;
 
@@ -20,16 +20,23 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+using MathUtils = Niantic.ARDK.Utilities.MathUtils;
+
 #if ARDK_HAS_URP
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.Universal;
-using Niantic.ARDK.Rendering.SRP;
-
 using UnityEngine.Rendering.Universal;
+
+using Niantic.ARDK.Rendering.SRP;
+#endif
+
+#if UNITY_EDITOR
+using UnityEditor;
 #endif
 
 namespace Niantic.ARDK.VirtualStudio.AR.Mock
 {
+  using Camera = UnityEngine.Camera;
   internal sealed class _MockFrameBufferProvider:
     IDisposable
   {
@@ -44,6 +51,9 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     private Camera _imageCamera;
     private CameraIntrinsics _imageIntrinsics;
     private RenderTexture _imageRT;
+    private RenderTexture _imageFlippedRT;
+    private Shader _flipImageShader;
+    private Material _flipImageMaterial;
 
     // Depth buffer
     private bool _generateDepth;
@@ -81,8 +91,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     public const string MOCK_LAYER_NAME = "ARDK_MockWorld";
 
     public const string MOCK_LAYER_MISSING_MSG =
-      "Add the ARDK_MockWorld layer to the Layers list (Edit > ProjectSettings > Tags and Layers)" +
-      " in order to render in Mock AR sessions.";
+      "No ARDK_MockWorld layer found in the Layers list (Edit > ProjectSettings > Tags and Layers)";
 
     public _MockFrameBufferProvider(_MockARSession mockARSession, Transform camerasRoot)
     {
@@ -100,27 +109,6 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       InitializeImageGeneration();
 
       _UpdateLoop.Tick += Update;
-    }
-
-    internal static void RemoveLayerFromCamera(Camera cam, string layerName)
-    {
-      // get the input layer name's index, which should range from 0 to Unity's max # of layers minus 1
-      int layerIndex = LayerMask.NameToLayer(layerName);
-        
-      if (layerIndex > -1)
-      {
-        // perform a guardrail check to see if the mock layer
-        // is included in the ar camera's culling mask
-        if ((cam.cullingMask & (1 << layerIndex)) != 0)
-        {
-          // in the case that the mock layer is included, remove it from the culling mask
-          cam.cullingMask &= ~(1 << layerIndex);
-        }
-      }
-      else
-      {
-        ARLog._Error($"Layer {layerName} does not exist");
-      }
     }
 
     private void CheckRunConfiguration(ARSessionRanArgs args)
@@ -159,61 +147,51 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     {
       // Instantiate a new Unity camera
       _imageCamera = CreateCameraBase("Image");
-      
+
       // Configure the camera to use physical properties
       _imageCamera.usePhysicalProperties = true;
       _imageCamera.focalLength = _SensorFocalLength;
       _imageCamera.nearClipPlane = 0.1f;
       _imageCamera.farClipPlane = 100f;
 
-      // Infer the orientation of the editor
-      var editorOrientation = Screen.width > Screen.height
-        ? ScreenOrientation.Landscape
-        : ScreenOrientation.Portrait;
-
       // Rotate the 'device' to the UI orientation
       _imageCamera.transform.localRotation = MathUtils.CalculateViewRotation
       (
-        from: ScreenOrientation.Landscape,
-        to: editorOrientation
+        from: ScreenOrientation.LandscapeLeft,
+        to: MathUtils.CalculateScreenOrientation()
       ).ToRotation();
-      
+
       // Set up rendering offscreen to render texture.
-      _imageRT = new RenderTexture
-      (
-        _ARImageWidth,
-        _ARImageHeight,
-        16,
-        RenderTextureFormat.BGRA32
-      );
+      _imageRT = new RenderTexture(_ARImageWidth, _ARImageHeight, 16, RenderTextureFormat.BGRA32);
+      _imageFlippedRT = new RenderTexture(_ARImageWidth, _ARImageHeight, 16, RenderTextureFormat.BGRA32);
       _imageRT.Create();
+      _imageFlippedRT.Create();
+
+      _flipImageShader = Resources.Load<Shader>("FlipImage");
+      _flipImageMaterial = new Material(_flipImageShader);
       _imageCamera.targetTexture = _imageRT;
 
+      // This needs to be called AFTER we set the target texture
       _imageIntrinsics = MathUtils.CalculateIntrinsics(_imageCamera);
 
       // Reading this property's value is equivalent to calling
-      // the CalculateProjectionMatrix method, using the camera's
-      // imageResolution and intrinsics properties to derive size
-      // and orientation, and passing default values of 0.001 and
-      // 1000.0 for the near and far clipping planes.
+      // the CalculateProjectionMatrix method.
       var projection = MathUtils.CalculateProjectionMatrix
       (
         _imageIntrinsics,
         _ARImageWidth,
         _ARImageHeight,
-        _ARImageWidth,
-        _ARImageHeight,
-        _ARImageWidth > _ARImageHeight
-          ? ScreenOrientation.Landscape
-          : ScreenOrientation.Portrait,
-        0.001f,
-        1000.0f
+        _imageCamera.pixelWidth,
+        _imageCamera.pixelHeight,
+        MathUtils.CalculateScreenOrientation(),
+        _imageCamera.nearClipPlane,
+        _imageCamera.farClipPlane
       );
 
       // Initialize the view matrix.
       // This will be updated in every frame.
       var initialView = GetMockViewMatrix(_imageCamera);
-      
+
       var imageResolution = new Resolution
       {
         width = _ARImageWidth, height = _ARImageHeight
@@ -238,17 +216,14 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     {
       _depthCamera = CreateAwarenessCamera("Depth");
       _depthCamera.depthTextureMode = DepthTextureMode.Depth;
-      
-      var editorOrientation = Screen.width > Screen.height
-        ? ScreenOrientation.Landscape
-        : ScreenOrientation.Portrait;
 
       // Rotate the 'device' to the UI orientation
-      _depthCamera.transform.localRotation = MathUtils.CalculateViewRotation
-      (
-        from: ScreenOrientation.Landscape,
-        to: editorOrientation
-      ).ToRotation();
+      _depthCamera.transform.localRotation =
+        MathUtils.CalculateViewRotation
+        (
+          from: ScreenOrientation.LandscapeLeft,
+          to: MathUtils.CalculateScreenOrientation()
+        ).ToRotation();
 
       _depthRT =
       new RenderTexture
@@ -284,16 +259,13 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       _semanticsCamera = CreateAwarenessCamera("Semantics");
       _semanticsCamera.clearFlags = CameraClearFlags.SolidColor;
       _semanticsCamera.backgroundColor = new Color(0, 0, 0, 0);
-      
-      var editorOrientation = Screen.width > Screen.height
-        ? ScreenOrientation.Landscape
-        : ScreenOrientation.Portrait;
 
       // Rotate the 'device' to the UI orientation
-      _semanticsCamera.transform.localRotation = MathUtils.CalculateViewRotation
+      _semanticsCamera.transform.localRotation =
+        MathUtils.CalculateViewRotation
         (
-          from: ScreenOrientation.Landscape,
-          to: editorOrientation
+          from: ScreenOrientation.LandscapeLeft,
+          to: MathUtils.CalculateScreenOrientation()
         ).ToRotation();
 
       _semanticsRT =
@@ -355,13 +327,15 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       var camera = cameraObject.AddComponent<Camera>();
       camera.depth = int.MinValue;
 
-      if (LayerMask.NameToLayer(MOCK_LAYER_NAME) < 0)
+#if UNITY_EDITOR
+      var layerIndex = LayerMask.NameToLayer(MOCK_LAYER_NAME);
+      if (layerIndex < 0)
       {
-        ARLog._Error(MOCK_LAYER_MISSING_MSG);
-        return null;
+        if (!CreateLayer(MOCK_LAYER_NAME, out layerIndex))
+          return null;
       }
-
       camera.cullingMask = LayerMask.GetMask(MOCK_LAYER_NAME);
+#endif
 
       return camera;
     }
@@ -387,6 +361,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       _isDisposed = true;
 
       _imageRT.Release();
+      _imageFlippedRT.Release();
 
       if (_depthCamera != null)
       {
@@ -406,14 +381,12 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
     {
       var rotation = MathUtils.CalculateViewRotation
       (
-        from: ScreenOrientation.Landscape,
-        to: Screen.width > Screen.height
-          ? ScreenOrientation.Landscape
-          : ScreenOrientation.Portrait
+        from: ScreenOrientation.LandscapeLeft,
+        to: MathUtils.CalculateScreenOrientation()
       );
 
       var narView = serializedCamera.worldToCameraMatrix.ConvertViewMatrixBetweenNarAndUnity();
-      
+
       return rotation * narView;
     }
 
@@ -436,7 +409,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
             depthBuffer = _GetDepthBuffer();
             _timeSinceLastDepthUpdate = Time.time;
           }
-          
+
           _SerializableSemanticBuffer semanticBuffer = null;
           if (_generateSemantics && Time.time - _timeSinceLastSemanticsUpdate > _timeBetweenSemanticsUpdates)
           {
@@ -453,18 +426,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
             lightEstimate: null,
             anchors: null,
             maps: null,
-            worldScale: 1.0f,
-            estimatedDisplayTransform: MathUtils.CalculateDisplayTransform
-            (
-              _ARImageWidth,
-              _ARImageHeight,
-              Screen.width,
-              Screen.height,
-              Screen.width > Screen.height
-                ? ScreenOrientation.Landscape
-                : ScreenOrientation.Portrait,
-              invertVertically: false
-            )
+            worldScale: 1.0f
           );
 
           _arSession.UpdateFrame(serializedFrame);
@@ -474,6 +436,8 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 
     private _SerializableImageBuffer _GetImageBuffer()
     {
+      Graphics.Blit(_imageRT, _imageFlippedRT, _flipImageMaterial);
+
       var imageData =
         new NativeArray<byte>
         (
@@ -486,7 +450,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref imageData, AtomicSafetyHandle.Create());
 #endif
 
-      AsyncGPUReadback.RequestIntoNativeArray(ref imageData, _imageRT).WaitForCompletion();
+      AsyncGPUReadback.RequestIntoNativeArray(ref imageData, _imageFlippedRT).WaitForCompletion();
 
       var plane =
         new _SerializableImagePlane
@@ -517,7 +481,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       (
         _ModelWidth * _ModelHeight,
         Allocator.Persistent,
-        NativeArrayOptions.UninitializedMemory
+        NativeArrayOptions.ClearMemory
       );
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -530,7 +494,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       (
         _ModelWidth,
         _ModelHeight,
-        true,
+        isKeyframe:true,
         GetMockViewMatrix(_imageCamera),
         depthData,
         _ModelNearDistance,
@@ -577,7 +541,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
       (
         _ModelWidth,
         _ModelHeight,
-        true,
+        isKeyframe:true,
         GetMockViewMatrix(_imageCamera),
         data,
         _channelNames,
@@ -589,5 +553,83 @@ namespace Niantic.ARDK.VirtualStudio.AR.Mock
 
       return buffer;
     }
+
+#if UNITY_EDITOR
+    internal static void RemoveMockFromCullingMask(Camera cam)
+    {
+      // get the input layer name's index, which should range from 0 to Unity's max # of layers minus 1
+      int layerIndex = LayerMask.NameToLayer(MOCK_LAYER_NAME);
+
+      if (layerIndex >= 0 || CreateLayer(MOCK_LAYER_NAME, out layerIndex))
+      {
+        // perform a guardrail check to see if the mock layer
+        // is included in the ar camera's culling mask
+        if ((cam.cullingMask & (1 << layerIndex)) != 0)
+        {
+          // in the case that the mock layer is included, remove it from the culling mask
+          cam.cullingMask &= ~(1 << layerIndex);
+        }
+      }
+    }
+
+    public static bool CreateLayer(string layerName, out int layerIndex)
+    {
+      layerIndex = -1;
+      if (LayerMask.NameToLayer(layerName) >= 0)
+      {
+        ARLog._WarnFormat("Layer: {0} already exists in TagManager.", false, layerName);
+        return false;
+      }
+
+      var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+      if (assets.Length == 0)
+      {
+        ARLog._ErrorFormat
+        (
+          "No ProjectSettings/TagManager.asset file found to add Layer: {0} required for use " +
+          "of Virtual Studio Mock mode.",
+          false,
+          layerName
+        );
+
+        return false;
+      }
+
+      var tagManager = new SerializedObject(assets[0]);
+      var layers = tagManager.FindProperty("layers");
+
+      // First 7 layers are reserved for Unity's built-in layers.
+      for (int i = 8, j = layers.arraySize; i < j; i++)
+      {
+        var layerProp = layers.GetArrayElementAtIndex(i);
+        if (string.IsNullOrEmpty(layerProp.stringValue))
+        {
+          layerProp.stringValue = layerName;
+          tagManager.ApplyModifiedProperties();
+          AssetDatabase.SaveAssets();
+
+          ARLog._ReleaseFormat
+          (
+            "Layer: {0} has been added to your project for use with Virtual Studio Mock mode." +
+            "See the Edit > Project Settings > Tags and Layers menu to verify.",
+            false,
+            layerName
+          );
+
+          layerIndex = i;
+          return true;
+        }
+      }
+
+      ARLog._ErrorFormat
+      (
+        "All user layer slots are in use. Unable to add Layer: {0} required for use " +
+        "of Virtual Studio Mock mode.",
+        layerName
+      );
+
+      return false;
+    }
+#endif
   }
 }

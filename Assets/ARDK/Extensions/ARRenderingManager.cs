@@ -1,24 +1,26 @@
-﻿using Niantic.ARDK.AR;
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
+using System;
+
+using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.ARSessionEventArgs;
-using Niantic.ARDK.Extensions;
-using Niantic.ARDK.Internals.EditorUtilities;
 using Niantic.ARDK.Rendering;
 using Niantic.ARDK.Utilities;
+using Niantic.ARDK.Utilities.Editor;
 using Niantic.ARDK.Utilities.Logging;
 using Niantic.ARDK.VirtualStudio.AR.Mock;
 
 using UnityEngine;
 
-namespace Niantic.ARDK.Helpers
+namespace Niantic.ARDK.Extensions
 {
   [DisallowMultipleComponent]
-  public sealed class ARRenderingManager: 
+  public class ARRenderingManager:
     UnityLifecycleDriver
   {
     [SerializeField]
     [HideInInspector]
     private int _renderTargetId;
-    
+
     [SerializeField]
     [_Autofill]
     private Camera _camera = null;
@@ -27,13 +29,15 @@ namespace Niantic.ARDK.Helpers
     private RenderTexture _targetTexture = null;
 
     [SerializeField]
+    [HideInInspector]
     private float _nearClippingPlane = 0.1f;
-    
+
     [SerializeField]
+    [HideInInspector]
     private float _farClippingPlane = 100.0f;
-    
+
     /// Event for when the underlying frame renderer initialized.
-    public event ArdkEventHandler<FrameRenderedArgs> RendererInitialized; 
+    public event ArdkEventHandler<FrameRenderedArgs> RendererInitialized;
 
     /// Prevents us from writing back the values _we_ set in case we accidentally set the
     /// previous rates twice,
@@ -57,6 +61,18 @@ namespace Niantic.ARDK.Helpers
     private bool _isCPUTextureDirty = true;
     private bool _isFrameDirty = true;
     private bool _releaseTargetTexture = false;
+
+    public Camera Camera
+    {
+      get => _camera;
+      set
+      {
+        if (Initialized)
+          throw new InvalidOperationException("Cannot set this property after this component is initialized.");
+
+        _camera = value;
+      }
+    }
 
     /// Returns the renderer instance used by this manager
     public IARFrameRenderer Renderer
@@ -104,8 +120,16 @@ namespace Niantic.ARDK.Helpers
           }
 
           // Blit the current render state to the GPU texture
-          _renderer.BlitToTexture(ref _gpuTexture);
-          _isGPUTextureDirty = false;
+          try
+          {
+            _renderer.BlitToTexture(ref _gpuTexture);
+            _isGPUTextureDirty = false;
+          }
+          catch (InvalidOperationException e)
+          {
+            ARLog._Error(e.Message);
+            return null;
+          }
         }
 
         return _gpuTexture;
@@ -151,15 +175,17 @@ namespace Niantic.ARDK.Helpers
     protected override void InitializeImpl()
     {
       base.InitializeImpl();
-      
+
       if (_camera != null)
       {
-        // Copy clipping plane distances from the camera if available
-        _nearClippingPlane = _camera.nearClipPlane;
-        _farClippingPlane = _camera.farClipPlane;
+#if UNITY_EDITOR
+        // Attempt to disable the layer all mock objects are on so "real" objects aren't doubly rendered
+        // by the mock device camera and the scene camera.
+        _MockFrameBufferProvider.RemoveMockFromCullingMask(_camera);
+#endif
       }
 
-      // Assign the current session 
+      // Assign the current session
       ARSessionFactory.SessionInitialized += ARSessionFactory_SessionInitialized;
     }
 
@@ -167,7 +193,7 @@ namespace Niantic.ARDK.Helpers
     {
       base.DeinitializeImpl();
       ARSessionFactory.SessionInitialized -= ARSessionFactory_SessionInitialized;
-      
+
       // Release the renderer
       _renderer?.Dispose();
       _renderer = null;
@@ -197,19 +223,19 @@ namespace Niantic.ARDK.Helpers
     {
       base.DisableFeaturesImpl();
       _renderer?.Disable();
-      
+
       // Revert application settings
       _savedRenderingSettings?.Apply();
       _savedRenderingSettings = null;
     }
 
     // We drive rendering from late update, to
-    // wait for render state providers to update 
+    // wait for render state providers to update
     private void LateUpdate()
     {
       if (!_isFrameDirty)
         return;
-      
+
       if (_renderer == null)
         return;
 
@@ -242,16 +268,6 @@ namespace Niantic.ARDK.Helpers
       _session.Ran += OnSessionRan;
       _session.Paused += OnSessionPaused;
       _session.Deinitialized += OnSessionDeinitialized;
-
-      if (_camera == null)
-        return;
-
-      // If it is a mock session, attempt to disable the layer all mock objects are on so "real"
-      // objects aren't doubly rendered by mock device camera and the scene camera.
-      if (_session.RuntimeEnvironment == RuntimeEnvironment.Mock)
-      {
-        _MockFrameBufferProvider.RemoveLayerFromCamera(_camera, _MockFrameBufferProvider.MOCK_LAYER_NAME);
-      }
     }
 
     private void OnSessionRan(ARSessionRanArgs args)
@@ -261,7 +277,7 @@ namespace Niantic.ARDK.Helpers
         // If the renderer is already created, and this is enabled, enable the renderer.
         if (AreFeaturesEnabled)
           EnableFeaturesImpl();
-        
+
         return;
       }
 
@@ -272,24 +288,35 @@ namespace Niantic.ARDK.Helpers
         ARLog._Error("Failed to create a renderer for the running platform.");
         return;
       }
-      
+
       // Initialize the renderer
       _renderer.Initialize();
-      
+
       // Propagate the initialization of the renderer
-      RendererInitialized?.Invoke(new FrameRenderedArgs(_renderer));
+      _renderer.Initialized += OnRendererInitialized;
 
       // Attach any render state providers
       var stateProviders = GetComponents<IRenderFeatureProvider>();
       foreach (var provider in stateProviders)
         _renderer.AddFeatureProvider(provider);
-      
+
       // Enable renderer
       if (AreFeaturesEnabled)
       {
         _renderer.Enable();
         AdjustFrameRate(_renderer);
       }
+    }
+    
+    private void OnRendererInitialized(FrameRenderedArgs args)
+    {
+      if (args.Renderer != _renderer)
+        return;
+
+      _renderer.Initialized -= OnRendererInitialized;
+        
+      // Propagate the initialization of the renderer
+      RendererInitialized?.Invoke(args);
     }
 
     private void AdjustFrameRate(IARFrameRenderer withRenderer)
@@ -301,7 +328,7 @@ namespace Niantic.ARDK.Helpers
         Screen.sleepTimeout,
         QualitySettings.vSyncCount
       );
-      
+
       // Configure target frame rate
       QualitySettings.vSyncCount = 0;
       Application.targetFrameRate = withRenderer.RecommendedFrameRate;
@@ -323,11 +350,14 @@ namespace Niantic.ARDK.Helpers
         // Allocate a new render texture
         _targetTexture = new RenderTexture(Screen.width, Screen.height, depth: 24)
         {
-          useMipMap = false, autoGenerateMips = false, filterMode = FilterMode.Point, anisoLevel = 0
+          useMipMap = false,
+          autoGenerateMips = false,
+          filterMode = FilterMode.Point,
+          anisoLevel = 0
         };
 
         _targetTexture.Create();
-        
+
         // The rendering manager owns the target texture and needs to release it
         _releaseTargetTexture = true;
       }
@@ -336,13 +366,17 @@ namespace Niantic.ARDK.Helpers
         ? new RenderTarget(_targetTexture)
         : new RenderTarget(_camera);
 
-      var result = ARFrameRendererFactory.Create
-      (
-        renderTarget,
-        environment,
-        _nearClippingPlane,
-        _farClippingPlane
-      );
+      var nearClippingPlane = isOffscreen ? _nearClippingPlane : _camera.nearClipPlane;
+      var farClippingPlane = isOffscreen ? _farClippingPlane : _camera.farClipPlane;
+
+      ARFrameRenderer result =
+        ARFrameRendererFactory.Create
+        (
+          renderTarget,
+          environment,
+          nearClippingPlane,
+          farClippingPlane
+        );
 
       if (result != null)
         result.IsOrientationLocked = false;

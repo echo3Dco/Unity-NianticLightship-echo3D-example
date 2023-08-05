@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using Niantic.ARDK.Utilities;
 
@@ -14,7 +14,7 @@ namespace Niantic.ARDK.AR.ARSessionEventArgs
       _IsLocal = isLocal;
     }
 
-    public IARSession Session { get; private set; }
+    public IARSession Session { get; }
 
     internal bool _IsLocal { get; }
   }

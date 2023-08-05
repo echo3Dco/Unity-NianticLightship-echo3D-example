@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System.Collections.Generic;
 
 using Niantic.ARDK.Utilities;
@@ -6,12 +7,6 @@ using UnityEngine;
 
 namespace Niantic.ARDK.Rendering
 {
-  public interface ITargetableRenderFeatureProvider
-  {
-    /// The active render target of this provider
-    RenderTarget? Target { get; set; }
-  }
-
   /// A component that supplies the renderer with additional information to render an ARFrame.
   public interface IRenderFeatureProvider
   {
@@ -20,6 +15,9 @@ namespace Niantic.ARDK.Rendering
     
     /// A set of all render features this provider may enable or disable.
     ISet<string> Features { get; }
+    
+    /// The active render target of this provider
+    RenderTarget? Target { get; set; }
     
     /// Updates the provided material with additional information
     /// this component is responsible of providing.

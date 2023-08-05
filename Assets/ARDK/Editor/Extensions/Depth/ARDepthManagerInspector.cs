@@ -1,6 +1,7 @@
-﻿using Niantic.ARDK.AR;
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
+using Niantic.ARDK.AR;
 using Niantic.ARDK.Extensions;
-using Niantic.ARDK.Helpers;
+using Niantic.ARDK.Extensions.Meshing;
 
 using UnityEditor;
 
@@ -9,17 +10,19 @@ using UnityEngine;
 namespace ARDK.Editor.Extensions.Depth
 {
   [CustomEditor(typeof(ARDepthManager))]
-  public class ARDepthManagerInspector : UnityEditor.Editor
+  public class ARDepthManagerInspector
+    : UnityEditor.Editor
   {
     private SerializedProperty _occlusionModeProperty;
+    private SerializedProperty _stabilizationProperty;
     private SerializedProperty _textureFilterModeProperty;
     private SerializedProperty _interpolationProperty;
     private SerializedProperty _interpolationPreferenceProperty;
-    
 
     private void OnEnable()
     {
       _occlusionModeProperty = serializedObject.FindProperty("_occlusionMode");
+      _stabilizationProperty = serializedObject.FindProperty("_stabilizeOcclusionsExperimental");
       _textureFilterModeProperty = serializedObject.FindProperty("_textureFilterMode");
       _interpolationProperty = serializedObject.FindProperty("_interpolation");
       _interpolationPreferenceProperty = serializedObject.FindProperty("_interpolationPreference");
@@ -39,12 +42,16 @@ namespace ARDK.Editor.Extensions.Depth
           _textureFilterModeProperty.enumValueIndex != (int)FilterMode.Point
         );
 
-        _textureFilterModeProperty.enumValueIndex = useLinear
-          ? (int)FilterMode.Bilinear
-          : (int)FilterMode.Point;
+        _textureFilterModeProperty.enumValueIndex =
+          useLinear
+            ? (int)FilterMode.Bilinear
+            : (int)FilterMode.Point;
       }
-      // Default to point filtering when using the screen space mesh technique
-      else _textureFilterModeProperty.enumValueIndex = (int)FilterMode.Point;
+      else
+      {
+        // Default to point filtering when using the screen space mesh technique
+        _textureFilterModeProperty.enumValueIndex = (int)FilterMode.Point;
+      }
 
       _interpolationProperty.enumValueIndex = (int)((InterpolationMode)EditorGUILayout.EnumPopup
         ("Interpolation", (InterpolationMode)_interpolationProperty.enumValueIndex));
@@ -54,7 +61,7 @@ namespace ARDK.Editor.Extensions.Depth
 
       var isInterpolationAdapterPresentAndEnabled =
         interpolationAdapter != null && interpolationAdapter.enabled;
-      
+
       if (_interpolationProperty.enumValueIndex > 0)
       {
         if (!isInterpolationAdapterPresentAndEnabled)
@@ -72,7 +79,7 @@ namespace ARDK.Editor.Extensions.Depth
         else
           EditorGUILayout.HelpBox("Using interpolation preference adapter.", MessageType.None);
       }
-      
+
       serializedObject.ApplyModifiedProperties();
 
       var isRenderingManagerPresent =
@@ -85,6 +92,20 @@ namespace ARDK.Editor.Extensions.Depth
           "please make sure to add this AR Depth Manager to the renderer manually.",
           MessageType.Warning
         );
+      }
+
+      if (_stabilizationProperty.boolValue)
+      {
+        var isMeshingManagerPresent = FindObjectOfType<ARMeshManager>() != null;
+        if (!isMeshingManagerPresent)
+        {
+          EditorGUILayout.HelpBox
+          (
+            "The feature to stabilize occlusions is enabled, but no AR Meshing Manager " +
+            "can be found in the scene.",
+            MessageType.Warning
+          );
+        }
       }
     }
   }

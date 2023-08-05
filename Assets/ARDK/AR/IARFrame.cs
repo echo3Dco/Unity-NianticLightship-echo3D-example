@@ -1,6 +1,7 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 using Niantic.ARDK.AR.Anchors;
@@ -50,10 +51,27 @@ namespace Niantic.ARDK.AR
     IDepthBuffer Depth { get; }
 
     /// <summary>
-    /// The semantic buffer.
+    /// The semantic segmentation buffer.
     /// @note **May be null**.
     /// </summary>
     ISemanticBuffer Semantics { get; }
+
+    /// <summary>
+    /// Acquires per-pixel confidences for the specified semantic class.
+    /// The confidence values get copied to a floating point CPU buffer.
+    /// @note **May be null**.
+    /// </summary>
+    /// <param name="channelName">The semantics channel to get the confidences for.</param>
+    /// <returns>Floating point CPU buffer containing per-pixel confidences when called on key-frames.</returns>
+    IDataBufferFloat32 CopySemanticConfidences(string channelName);
+
+    /// <summary>
+    /// Gets the detection rectangle and confidence where palms may be.
+    /// @note This is an experimental feature. Experimental features should not be used in
+    /// production products as they are subject to breaking changes, not officially supported, and
+    /// may be deprecated without notice
+    /// </summary>
+    IReadOnlyList<Detection> PalmDetections { get; }
 
     /// <summary>
     /// Information about the camera position, orientation, and imaging parameters used to
@@ -136,14 +154,5 @@ namespace Niantic.ARDK.AR
     ///   safe, so this should only be called from the Unity main thread
     /// </summary>
     void ReleaseImageAndTextures();
-
-    /// <summary>
-    /// Get a serialized representation of this ARFrame, with variable compression levels.
-    /// Defaults to a compression factor of 70%.
-    /// </summary>
-    /// <param name="compressionLevel">The quality of the compressed buffers (1 = worst, 100 = best).</param>
-    /// <param name="includeImageBuffers">If false, image buffers will not be serialized.</param>
-    /// <param name="includeAwarenessBuffers">If false, awareness buffers will not be serialized.</param>
-    IARFrame Serialize(bool includeImageBuffers = true, bool includeAwarenessBuffers = true, int compressionLevel = 70);
   }
 }

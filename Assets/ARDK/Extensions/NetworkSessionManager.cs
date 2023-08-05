@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Text;
@@ -9,6 +9,7 @@ using Niantic.ARDK.Networking;
 using Niantic.ARDK.Utilities.Logging;
 
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace Niantic.ARDK.Extensions
@@ -39,8 +40,9 @@ namespace Niantic.ARDK.Extensions
     /// @note
     ///   Live device networking is supported in the Unity Editor, but it must be explicitly
     ///   specified here.
+    [FormerlySerializedAs("RuntimeEnvironment")]
     [SerializeField]
-    private RuntimeEnvironment RuntimeEnvironment = RuntimeEnvironment.Default;
+    private RuntimeEnvironment _runtimeEnvironment = RuntimeEnvironment.Default;
 
     /// Should be true if this ARSessionManager is being used in conjunction with an ARNetworkingManager.
     [SerializeField]
@@ -52,9 +54,6 @@ namespace Niantic.ARDK.Extensions
     [Tooltip("The session identifier used when `Connect` is called.")]
     private string _sessionIdentifier = null;
 
-    [SerializeField]
-    private Encoding _encoding = Encoding.UTF8;
-
     /// If not empty, the text value of this InputField will be used as the session
     /// identifier when `Connect` is called. Leave empty to get the default behaviour.
     [SerializeField]
@@ -65,9 +64,44 @@ namespace Niantic.ARDK.Extensions
     private bool _needToRecreate;
     private Guid _stageIdentifier = default;
 
+    /// @warning
+    ///   Underlying object will change if this component is enabled (connected), disabled (disconnected),
+    ///   and then connected again (reconnected). If subscribing to IMultipeerNetworking events,
+    ///   you should listen to the MultipeerNetworkingFactory.NetworkingInitialized event
+    ///   and add your IMultipeerNetworking event subscriptions to the latest initialized networking object.
     public IMultipeerNetworking Networking
     {
       get { return _networking; }
+    }
+
+    public RuntimeEnvironment RuntimeEnvironment
+    {
+      get => _runtimeEnvironment;
+      set
+      {
+        if (_networking != null)
+          throw new InvalidOperationException("Cannot set this property after this component has been initialized.");
+
+        _runtimeEnvironment = value;
+      }
+    }
+
+    public string SessionIdentifier
+    {
+      get => _sessionIdentifier;
+      set
+      {
+        if (_networking != null && _networking.IsConnected)
+        {
+          ARLog._WarnRelease
+          (
+            "SessionIdentifier value changed but the networking instance is already in a session. " +
+            "The new value will be used the next time this manager is used to connect to a session."
+          );
+        }
+
+        _sessionIdentifier = value;
+      }
     }
 
     protected override bool _CanReinitialize
@@ -79,13 +113,6 @@ namespace Niantic.ARDK.Extensions
     {
       base.InitializeImpl();
 
-      // If an ARSession was already created, then ListenForStage will be invoked on this same
-      // frame, and the networking will be created with the ARSession's' stage identifier.
-      // If it wasn't already created, then the networking will be created first and the
-      // ARSessionManager will use the networking's stage identifier.
-      if (_useWithARNetworkingSession)
-        ARSessionFactory.SessionInitialized += ListenForStage;
-
       Create();
 
       if (_inputField != null)
@@ -95,11 +122,17 @@ namespace Niantic.ARDK.Extensions
       }
     }
 
+    internal void _InitializeWithIdentifier(Guid identifier)
+    {
+      _stageIdentifier = identifier;
+      Initialize();
+    }
+
     protected override void DeinitializeImpl()
     {
       base.DeinitializeImpl();
 
-      ARSessionFactory.SessionInitialized -= ListenForStage;
+      _stageIdentifier = Guid.Empty;
 
       if (_inputField != null)
         _inputField.onEndEdit.RemoveListener(SetSessionIdentifier);
@@ -109,11 +142,6 @@ namespace Niantic.ARDK.Extensions
         _networking.Dispose();
         _networking = null;
       }
-    }
-
-    private void ListenForStage(AnyARSessionInitializedArgs args)
-    {
-      _stageIdentifier = args.Session.StageIdentifier;
     }
 
     protected override void EnableFeaturesImpl()
@@ -159,17 +187,32 @@ namespace Niantic.ARDK.Extensions
       {
         ARLog._Error
         (
-          "Failed to create a MultipeerNetworking session because one already exists." +
+          "Failed to create a MultipeerNetworking session because one already exists. " +
           "To create multiple sessions, use the MultipeerNetworkingFactory API instead."
         );
 
         return;
       }
 
-      if (_useWithARNetworkingSession && _stageIdentifier != Guid.Empty)
-        _networking = MultipeerNetworkingFactory.Create(RuntimeEnvironment, _stageIdentifier);
+      if (_useWithARNetworkingSession)
+      {
+        if (_stageIdentifier == Guid.Empty)
+        {
+          ARLog._Error
+          (
+            "Failed to create a MultipeerNetworking session because _useWithARNetworkingSession " +
+            "is true but no stage identifier was specified."
+          );
+
+          return;
+        }
+
+        _networking = MultipeerNetworkingFactory.Create(_runtimeEnvironment, _stageIdentifier);
+      }
       else
-        _networking = MultipeerNetworkingFactory.Create(RuntimeEnvironment);
+      {
+        _networking = MultipeerNetworkingFactory.Create(_runtimeEnvironment);
+      }
 
       ARLog._DebugFormat("Created {0} MultipeerNetworking: {1}.", false, _networking.RuntimeEnvironment, _networking.StageIdentifier);
 
@@ -193,7 +236,7 @@ namespace Niantic.ARDK.Extensions
       if (string.IsNullOrEmpty(_sessionIdentifier) && _inputField != null)
         _sessionIdentifier = _inputField.text;
 
-      var sessionMetadata = _encoding.GetBytes(_sessionIdentifier);
+      var sessionMetadata = Encoding.UTF8.GetBytes(_sessionIdentifier);
 
       _needToRecreate = true;
       _networking.Join(sessionMetadata);

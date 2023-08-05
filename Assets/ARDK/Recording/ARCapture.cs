@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 #if UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX || UNITY_STANDALONE_WIN
 #define UNITY_STANDALONE_DESKTOP
@@ -32,7 +32,6 @@ namespace Niantic.ARDK.Recording
       unsafe
       {
         var stageIdentifierBytes = stageIdentifier.ToByteArray();
-
         fixed (byte* stageIdentifierPtr = stageIdentifierBytes)
         {
           var nativePtr = PInvoke.Ctor(stageIdentifierPtr);

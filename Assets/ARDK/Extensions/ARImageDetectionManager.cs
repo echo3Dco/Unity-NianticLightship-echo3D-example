@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System;
 using System.Collections.Generic;
 
@@ -38,16 +39,10 @@ namespace Niantic.ARDK.Extensions
 
     /// Images that will be used in the ARSession's configuration when it is next run, if this
     /// manager is enabled.
-    public IReadOnlyCollection<IARReferenceImage> RuntimeImages
-    {
-      get
-      {
-        return _readOnlyRuntimeImages;
-      }
-    }
+    public IReadOnlyCollection<IARReferenceImage> RuntimeImages => _readOnlyRuntimeImages;
 
     private readonly HashSet<IARReferenceImage> _runtimeImages = new HashSet<IARReferenceImage>();
-    private readonly ARDKReadOnlyCollection<IARReferenceImage> _readOnlyRuntimeImages;
+    private ARDKReadOnlyCollection<IARReferenceImage> _readOnlyRuntimeImages;
 
     /// Adds an image to RuntimeImages and, if this manager is enabled, request that the session be
     /// re-run.
@@ -73,14 +68,11 @@ namespace Niantic.ARDK.Extensions
       }
     }
 
-    ARImageDetectionManager()
-    {
-      _readOnlyRuntimeImages = _runtimeImages.AsArdkReadOnly();
-    }
-
     protected override void InitializeImpl()
     {
       base.InitializeImpl();
+
+      _readOnlyRuntimeImages = _runtimeImages.AsArdkReadOnly();
 
       if (_images != null)
       {
@@ -114,9 +106,9 @@ namespace Niantic.ARDK.Extensions
       RaiseConfigurationChanged();
     }
 
-    internal override void _ApplyARConfigurationChange
+    public override void ApplyARConfigurationChange
     (
-      _ARSessionChangesCollector._ARSessionRunProperties properties
+      ARSessionChangesCollector.ARSessionRunProperties properties
     )
     {
       if (!AreFeaturesEnabled)

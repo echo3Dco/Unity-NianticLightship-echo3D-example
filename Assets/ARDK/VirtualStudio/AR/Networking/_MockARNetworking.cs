@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -20,7 +20,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking.Mock
   internal sealed class _MockARNetworking:
     IMockARNetworking
   {
-    private readonly _IVirtualStudioManager _virtualStudioManager;
+    private readonly _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
     private bool _isInitialized;
     private bool _isDisposed;
@@ -35,12 +35,12 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking.Mock
     (
       IARSession arSession,
       IMultipeerNetworking networking,
-      _IVirtualStudioManager virtualStudioMaster
+      _IVirtualStudioSessionsManager virtualStudioSessionsManager
     )
     {
       ARSession = arSession;
       Networking = networking;
-      _virtualStudioManager = virtualStudioMaster;
+      _virtualStudioSessionsManager = virtualStudioSessionsManager;
 
       _readOnlyLatestPeerPoses = new _ReadOnlyDictionary<IPeer, Matrix4x4>(_latestPeerPoses);
       _readOnlyLatestPeerStates = new _ReadOnlyDictionary<IPeer, PeerState>(_latestPeerStates);
@@ -192,7 +192,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking.Mock
       if (_timeSinceLastPoseSend < _poseLatency)
         return;
 
-      var mediator = _virtualStudioManager.ArNetworkingMediator;
+      var mediator = _virtualStudioSessionsManager.ArNetworkingMediator;
       var receivers = mediator.GetConnectedSessions(Networking.StageIdentifier);
 
       foreach (var receiver in receivers)
@@ -228,7 +228,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking.Mock
         return;
       }
 
-      var mediator = _virtualStudioManager.ArNetworkingMediator;
+      var mediator = _virtualStudioSessionsManager.ArNetworkingMediator;
       var receivers = mediator.GetConnectedSessions(Networking.StageIdentifier);
 
       foreach (var receiver in receivers)

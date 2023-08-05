@@ -1,10 +1,9 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 
+using Niantic.ARDK.Utilities.Editor;
 using Niantic.ARDK.Utilities.Logging;
-using Niantic.ARDK.Internals.EditorUtilities;
 
 using UnityEngine;
 
@@ -48,27 +47,5 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
     ///   Order that the onNetworkingDidInitialize Action is invoked, relative to that of other
     ///   NetworkedBehaviors on this GameObject.
     protected abstract void SetupSession(out Action onNetworkingDidInitialize, out int order);
-
-#if UNITY_EDITOR && !UNITY_2018_3_OR_NEWER
-    /// When a NetworkedBehaviour is added to a GameObject, update the list of NetworkedBehaviours
-    /// contained in the NetworkedUnityObject.
-    /// @note
-    ///   OnValidate will only work on the startup + changing of values of that component, so
-    ///   the list will not be updated when adding a new NetworkedBehaviour if this is in
-    ///   NetworkedUnityObject.
-    /// @note
-    ///   This only works in versions before Unity 2018.3. Later versions will need to populate
-    ///   the list through NetworkedUnityObjectEditor
-    private void OnValidate()
-    {
-      if (!Application.isEditor || Application.isPlaying)
-        return;
-
-      if (Owner == null)
-        return;
-
-      Owner.RefreshBehaviourList();
-    }
-#endif
   }
 }

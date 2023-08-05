@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -16,7 +16,7 @@ namespace Niantic.ARDK.AR.ReferenceImage
   {
     static _NativeARReferenceImage()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private static readonly _WeakValueDictionary<IntPtr, _NativeARReferenceImage> _allImages =
@@ -25,7 +25,7 @@ namespace Niantic.ARDK.AR.ReferenceImage
     internal static _NativeARReferenceImage _FromNativeHandle(IntPtr nativeHandle)
     {
       _StaticMemberValidator._CollectionIsEmptyWhenScopeEnds(() => _allImages);
-      
+
       var cppAddress = _NARReferenceImage_GetCppAddress(nativeHandle);
 
       var possibleResult = _allImages.TryGetValue(cppAddress);
@@ -42,7 +42,7 @@ namespace Niantic.ARDK.AR.ReferenceImage
       var result =
         _allImages.GetOrAdd(cppAddress, (_) => new _NativeARReferenceImage(nativeHandle));
 
-      if (result._nativeHandle != nativeHandle)
+      if (result._NativeHandle != nativeHandle)
       {
         // We got in a very rare situation. After our TryGetValue, another thread actually did add
         // a wrapper for the same cppAddress we are using. This means there are 2 handles for the
@@ -61,59 +61,53 @@ namespace Niantic.ARDK.AR.ReferenceImage
       if (nativeHandle == IntPtr.Zero)
         throw new ArgumentNullException("nativeHandle can't be Zero.", "nativeHandle");
 
-      _nativeHandle = nativeHandle;
+      _NativeHandle = nativeHandle;
       GC.AddMemoryPressure(_MemoryPressure);
     }
 
     ~_NativeARReferenceImage()
     {
-      _ReleaseImmediate(_nativeHandle);
-      
+      _ReleaseImmediate(_NativeHandle);
       GC.RemoveMemoryPressure(_MemoryPressure);
     }
 
     private static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARReferenceImage_Release(nativeHandle);
     }
 
     public void Dispose()
     {
       GC.SuppressFinalize(this);
-      
-      var nativeHandle = _nativeHandle;
+      var nativeHandle = _NativeHandle;
+
       if (nativeHandle != IntPtr.Zero)
       {
-        _nativeHandle = IntPtr.Zero;
+        _NativeHandle = IntPtr.Zero;
 
         _ReleaseImmediate(nativeHandle);
-        
+
         GC.RemoveMemoryPressure(_MemoryPressure);
       }
     }
 
-    private IntPtr _nativeHandle;
-    internal IntPtr _NativeHandle
-    {
-      get { return _nativeHandle;}
-    }
+    internal IntPtr _NativeHandle { get; private set; }
 
     public string Name
     {
       get
       {
         var stringBuilder = new StringBuilder(25);
-        
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          _NARReferenceImage_GetName(_nativeHandle, stringBuilder, stringBuilder.Capacity);
-        
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
+          _NARReferenceImage_GetName(_NativeHandle, stringBuilder, stringBuilder.Capacity);
+
         return stringBuilder.ToString();
       }
       set
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          _NARReferenceImage_SetName(_nativeHandle, value);
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
+          _NARReferenceImage_SetName(_NativeHandle, value);
       }
     }
 
@@ -122,20 +116,20 @@ namespace Niantic.ARDK.AR.ReferenceImage
       get
       {
         var rawPhysicalSize = new float[2];
-        
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          _NARReferenceImage_GetPhysicalSize(_nativeHandle, rawPhysicalSize);
-        
+
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
+          _NARReferenceImage_GetPhysicalSize(_NativeHandle, rawPhysicalSize);
+
         return new Vector2(rawPhysicalSize[0], rawPhysicalSize[1]);
       }
     }
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern void _NARReferenceImage_Release(IntPtr nativeHandle);
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern IntPtr _NARReferenceImage_GetCppAddress(IntPtr nativeHandle);
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern void _NARReferenceImage_GetName
     (

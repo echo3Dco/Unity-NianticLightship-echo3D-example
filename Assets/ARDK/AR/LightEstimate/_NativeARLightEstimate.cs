@@ -1,10 +1,11 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.Internals;
+using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Collections;
 
 namespace Niantic.ARDK.AR.LightEstimate
@@ -17,13 +18,15 @@ namespace Niantic.ARDK.AR.LightEstimate
 
     static _NativeARLightEstimate()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private IntPtr _nativeHandle;
 
     internal _NativeARLightEstimate(IntPtr nativeHandle)
     {
+      _NativeAccess.AssertNativeAccessValid();
+
       if (nativeHandle == IntPtr.Zero)
         throw new ArgumentException("nativeHandle can't be Zero.", nameof(nativeHandle));
 
@@ -33,8 +36,7 @@ namespace Niantic.ARDK.AR.LightEstimate
 
     private static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _NARLightEstimate_Release(nativeHandle);
+      _NARLightEstimate_Release(nativeHandle);
     }
 
     ~_NativeARLightEstimate()
@@ -60,12 +62,7 @@ namespace Niantic.ARDK.AR.LightEstimate
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          return _NARLightEstimate_GetAmbientIntensity(_nativeHandle);
-
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
+        return _NARLightEstimate_GetAmbientIntensity(_nativeHandle);
       }
     }
 

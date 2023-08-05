@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System.Collections;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using Niantic.ARDK.AR.SLAM;
 using Niantic.ARDK.Utilities;
 
 namespace Niantic.ARDK.Extensions.MapVisualization {
+  /// Controller for map visualization prefab for AR localization
   public class ARMapController : MonoBehaviour, IMapVisualizationController {
     private MeshRenderer _meshRenderer = null;
     private Color _color;

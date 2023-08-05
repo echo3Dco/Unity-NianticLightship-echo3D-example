@@ -1,10 +1,11 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.ReferenceImage;
 using Niantic.ARDK.Internals;
+using Niantic.ARDK.Utilities;
 
 namespace Niantic.ARDK.AR.Anchors
 {
@@ -27,7 +28,7 @@ namespace Niantic.ARDK.AR.Anchors
       get
       {
         #pragma warning disable 0162
-        if (NativeAccess.Mode != NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode != _NativeAccess.ModeType.Native)
           throw new IncorrectlyUsedNativeClassException();
         #pragma warning restore 0162
 

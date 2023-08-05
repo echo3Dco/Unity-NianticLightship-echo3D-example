@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -19,6 +19,7 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
 
     private UnreliableBroadcastTransformPacker _transformPacker;
 
+#pragma warning disable 0618
     protected override void SetupSession(out Action initializer, out int order)
     {
       initializer = () =>
@@ -36,7 +37,8 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
 
       order = 0;
     }
-
+#pragma warning restore 0618
+    
     private void OnDestroy()
     {
       _transformPacker?.Unregister();

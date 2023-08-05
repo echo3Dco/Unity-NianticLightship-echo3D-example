@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 namespace Niantic.ARDK.Rendering
 {
   /// Possible ways to determine camera feed resolution.

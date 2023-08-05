@@ -1,4 +1,4 @@
-﻿// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -29,7 +29,7 @@ namespace Niantic.ARDK.AR.Depth
     public ReadOnlyCollection<Vector3> Points { get; }
     public UInt32 Width { get; }
     public UInt32 Height { get; }
-    
+
     void IDisposable.Dispose()
     {
       // Do nothing as this object is fully managed.

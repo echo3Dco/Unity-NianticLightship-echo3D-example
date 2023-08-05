@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -12,16 +12,19 @@ using Niantic.ARDK.AR.Awareness;
 using Niantic.ARDK.AR.Configuration;
 using Niantic.ARDK.AR.Awareness.Depth;
 using Niantic.ARDK.AR.Awareness.Depth.Generators;
+using Niantic.ARDK.AR.Awareness.Human;
 using Niantic.ARDK.AR.Frame;
-using Niantic.ARDK.AR.Localization;
 using Niantic.ARDK.AR.Mesh;
 using Niantic.ARDK.AR.Networking;
+using Niantic.ARDK.AR.Protobuf;
 using Niantic.ARDK.AR.SLAM;
 using Niantic.ARDK.Extensions.Meshing;
 using Niantic.ARDK.LocationService;
+using Niantic.ARDK.Telemetry;
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Collections;
 using Niantic.ARDK.Utilities.Logging;
+using Niantic.ARDK.VirtualStudio.AR.Camera.Input;
 using Niantic.ARDK.VirtualStudio.AR.Mock;
 
 using UnityEngine;
@@ -30,8 +33,7 @@ using UnityEngine.Rendering;
 namespace Niantic.ARDK.VirtualStudio.AR
 {
   internal sealed class _MockARSession:
-    _IMockARSession,
-    ILocalizableARSession
+    _IMockARSession
   {
     private bool _isWorldTracking;
     private bool _isSharedExperience;
@@ -54,25 +56,16 @@ namespace Niantic.ARDK.VirtualStudio.AR
     // TODO: Should we use a HashSet here? Should we use _ReferenceComparer?
     private readonly HashSet<IARMap> _newMaps = new HashSet<IARMap>();
 
-    private _IVirtualStudioManager _virtualStudioManager;
+    private _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
     private GameObject _camerasRoot;
     private _MockFrameBufferProvider _frameProvider;
-    private _MockCameraController _cameraController;
 
 #if DEBUG
     private System.Diagnostics.StackTrace _stackTrace = new System.Diagnostics.StackTrace(true);
 #endif
 
-    private ILocalizer _localizer;
-    /// @note This is an experimental feature, and may be changed or removed in a future release.
-    ///   This feature is currently not functional or supported.
-    public ILocalizer Localizer
-    {
-      get => _localizer ?? (_localizer = new _MockLocalizer(this));
-    }
-
-    public _ARSessionChangesCollector _ARSessionChangesCollector { get; }
+    public ARSessionChangesCollector ARSessionChangesCollector { get; }
 
     public ARSessionRunOptions RunOptions { get; private set; }
 
@@ -83,13 +76,28 @@ namespace Niantic.ARDK.VirtualStudio.AR
 
     private _MeshDataParser _meshDataParser = new _MeshDataParser();
 
-    internal _MockARSession(Guid stageIdentifier, _IVirtualStudioManager virtualStudioManager)
+    public HandTracker HandTracker
+    {
+      get
+      {
+        if (_handTracker == null)
+        {
+          _handTracker = new HandTracker(this);
+        }
+
+        return _handTracker;
+      }
+    }
+
+    private HandTracker _handTracker;
+
+    internal _MockARSession(Guid stageIdentifier, _IVirtualStudioSessionsManager virtualStudioSessionsManager)
     {
       _FriendTypeAsserter.AssertCallerIs(typeof(ARSessionFactory));
 
       StageIdentifier = stageIdentifier;
-      _virtualStudioManager = virtualStudioManager ?? _VirtualStudioManager.Instance;
-      _ARSessionChangesCollector = new _ARSessionChangesCollector(this);
+      _virtualStudioSessionsManager = virtualStudioSessionsManager ?? _VirtualStudioSessionsManager.Instance;
+      ARSessionChangesCollector = new ARSessionChangesCollector(this);
     }
 
     private bool _isDestroyed;
@@ -121,9 +129,6 @@ namespace Niantic.ARDK.VirtualStudio.AR
           GameObject.Destroy(_camerasRoot);
       }
 
-      _cameraController?.Dispose();
-      _cameraController = null;
-
       _frameProvider?.Dispose();
       _frameProvider = null;
 
@@ -132,6 +137,8 @@ namespace Niantic.ARDK.VirtualStudio.AR
 
       _meshDataParser?.Dispose();
       _meshDataParser = null;
+
+      _handTracker = null;
     }
 
     private float _worldScale = 1.0f;
@@ -166,8 +173,22 @@ namespace Niantic.ARDK.VirtualStudio.AR
       ARSessionRunOptions options = ARSessionRunOptions.None
     )
     {
-      _ARSessionChangesCollector._CollectChanges(configuration, ref options);
+      ARSessionChangesCollector._CollectChanges(configuration, ref options);
 
+      try
+      {
+        var configForTelemetry = (IARWorldTrackingConfiguration)configuration;
+        _TelemetryService.RecordEvent(new EnabledContextualAwarenessEvent()
+        {
+          Depth = configForTelemetry.IsDepthEnabled,
+          Meshing = configForTelemetry.IsMeshingEnabled,
+          Semantics = configForTelemetry.IsSemanticSegmentationEnabled
+        });
+      }
+      finally
+      { }
+      
+      
       if (!_ARConfigurationValidator.RunAllChecks(this, configuration))
         return;
 
@@ -185,13 +206,13 @@ namespace Niantic.ARDK.VirtualStudio.AR
         _isSharedExperience = _isWorldTracking && worldConfiguration.IsSharedExperienceEnabled;
       }
 
-      if (_virtualStudioManager.LocalPlayer?.ARSession == this && _camerasRoot == null)
+      if (_virtualStudioSessionsManager.LocalPlayer?.ARSession == this && _camerasRoot == null)
       {
         _camerasRoot = new GameObject();
         _camerasRoot.name = "ARDK_MockDeviceCamera_Root";
 
         _frameProvider = new _MockFrameBufferProvider(this, _camerasRoot.transform);
-        _cameraController = new _MockCameraController(_camerasRoot.transform);
+        _CameraInputSystemProvider.AttachController(_camerasRoot);
       }
 
       State = ARSessionState.Running;
@@ -223,6 +244,13 @@ namespace Niantic.ARDK.VirtualStudio.AR
         case AnchorType.Plane:
           var planeAnchor = (IARPlaneAnchor)anchor;
           if (!_IsPlaneAnchorDetectable(planeAnchor))
+            return false;
+
+          break;
+
+        case AnchorType.Image:
+          var imageAnchor = (IARImageAnchor)anchor;
+          if (!_IsImageAnchorDetectable(imageAnchor))
             return false;
 
           break;
@@ -292,9 +320,23 @@ namespace Niantic.ARDK.VirtualStudio.AR
       return (detectedPlanes & thisPlane) != 0;
     }
 
+    private bool _IsImageAnchorDetectable(IARImageAnchor imageAnchor)
+    {
+      if (!_isWorldTracking)
+        return false;
+
+      foreach (var image in ((IARWorldTrackingConfiguration)Configuration).DetectionImages)
+      {
+        if (image.Name.Equals(imageAnchor.ReferenceImage.Name))
+          return true;
+      }
+
+      return false;
+    }
+
     public void RemoveAnchor(IARAnchor anchor)
     {
-      if (State != ARSessionState.Running)
+      if (State != ARSessionState.Running || anchor == null)
         return;
 
       if (!_anchors.ContainsKey(anchor.Identifier))
@@ -335,11 +377,11 @@ namespace Niantic.ARDK.VirtualStudio.AR
     private DepthPointCloudGenerator _depthPointCloudGen;
     private void _UpdateGenerators(_SerializableARFrame frame)
     {
-      if (!(Configuration is IARWorldTrackingConfiguration worldConfig) ||
-        !worldConfig.DepthPointCloudSettings.IsEnabled)
-      {
+      if (!(Configuration is IARWorldTrackingConfiguration worldConfig))
         return;
-      }
+
+      if (!worldConfig.IsDepthPointCloudEnabled)
+        return;
 
       var depthBuffer = frame.DepthBuffer;
       if (depthBuffer == null || !depthBuffer.IsKeyframe)
@@ -348,11 +390,7 @@ namespace Niantic.ARDK.VirtualStudio.AR
       // Create a generator if needed
       if (_depthPointCloudGen == null)
       {
-        _depthPointCloudGen =
-          new DepthPointCloudGenerator
-          (
-            worldConfig.DepthPointCloudSettings
-          );
+        _depthPointCloudGen = new DepthPointCloudGenerator();
 
         ARLog._Debug("Created new depth point cloud generator");
       }
@@ -455,7 +493,7 @@ namespace Niantic.ARDK.VirtualStudio.AR
 
     private IARNetworking _GetPartnerARNetworking()
     {
-      return _virtualStudioManager.ArNetworkingMediator.GetSession(StageIdentifier);
+      return _virtualStudioSessionsManager.ArNetworkingMediator.GetSession(StageIdentifier);
     }
 
     public void AddMap(IARMap map)
@@ -624,7 +662,7 @@ namespace Niantic.ARDK.VirtualStudio.AR
     }
 
     internal bool _HasSetupLocationService = false;
-    void IARSession.SetupLocationService(ILocationService wrapper)
+    void IARSession.SetupLocationService(ILocationService locationService)
     {
       _HasSetupLocationService = true;
     }

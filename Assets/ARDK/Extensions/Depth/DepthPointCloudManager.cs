@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -18,12 +18,9 @@ namespace Niantic.ARDK.Extensions.Depth
 {
   /// This helper can be placed in a scene to help visualize the depth point cloud.
   /// All data is expected to come from ARSession.
-  [RequireComponent(typeof(ARDepthManager))]
   public class DepthPointCloudManager: ARSessionListener
   {
     private const int MAX_SIMULTANEOUS_DRAW = 1023;
-
-    private IARSession _session;
 
     private bool _drawPointCloud;
     private Vector3[] _pointCloud;
@@ -41,30 +38,19 @@ namespace Niantic.ARDK.Extensions.Depth
     private Mesh _pointMesh;
     private Material _pointMaterial;
 
-    private ARDepthManager _depthManager;
-
-    protected override void InitializeImpl()
-    {
-      base.InitializeImpl();
-
-      _depthManager = GetComponent<ARDepthManager>();
-      if (_depthManager == null)
-        ARLog._Error("DepthPointCloudManager requires a sibling ARDepthManager component.");
-    }
-
     protected override void ListenToSession()
     {
-      _arSession.FrameUpdated += OnFrameUpdated;
+      ARSession.FrameUpdated += OnFrameUpdated;
     }
 
     protected override void StopListeningToSession()
     {
-      _arSession.FrameUpdated -= OnFrameUpdated;
+      ARSession.FrameUpdated -= OnFrameUpdated;
     }
 
-    internal override void _ApplyARConfigurationChange
+    public override void ApplyARConfigurationChange
     (
-      _ARSessionChangesCollector._ARSessionRunProperties properties
+      ARSessionChangesCollector.ARSessionRunProperties properties
     )
     {
       if (!AreFeaturesEnabled)
@@ -72,25 +58,7 @@ namespace Niantic.ARDK.Extensions.Depth
 
       if (properties.ARConfiguration is IARWorldTrackingConfiguration worldConfig)
       {
-        if (worldConfig.DepthPointCloudSettings == null)
-          worldConfig.DepthPointCloudSettings = new DepthPointCloudGenerator.Settings();
-
-        var pointCloudSettings = worldConfig.DepthPointCloudSettings;
-        pointCloudSettings.IsEnabled = true;
-
-        // The depth manager will always fit to viewport, so do that as well
-        pointCloudSettings.FitToViewport = true;
-
-        var arCamera = _depthManager._ARCamera;
-        if (arCamera != null)
-        {
-          pointCloudSettings.TargetWidth = arCamera.pixelWidth;
-          pointCloudSettings.TargetHeight = arCamera.pixelHeight;
-        }
-
-        var processor = _depthManager.DepthBufferProcessor;
-        pointCloudSettings.Interpolate = processor.InterpolationMode != InterpolationMode.None;
-        pointCloudSettings.BackProjectionDistance = processor.InterpolationPreference;
+        worldConfig.IsDepthPointCloudEnabled = true;
       }
     }
 

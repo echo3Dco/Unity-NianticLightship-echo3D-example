@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -19,7 +19,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
   internal sealed class _MockMultipeerNetworking:
     IMultipeerNetworking
   {
-    private readonly _IVirtualStudioManager _virtualStudioManager;
+    private readonly _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
     public Guid StageIdentifier { get; }
     public bool IsConnected { get; private set; }
@@ -53,13 +53,13 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
     internal _MockMultipeerNetworking
     (
       Guid stageIdentifier,
-      _IVirtualStudioManager virtualStudioMaster
+      _IVirtualStudioSessionsManager virtualStudioSessionsManager
     )
     {
       _FriendTypeAsserter.AssertCallerIs(typeof(MultipeerNetworkingFactory));
 
       StageIdentifier = stageIdentifier;
-      _virtualStudioManager = virtualStudioMaster;
+      _virtualStudioSessionsManager = virtualStudioSessionsManager;
 
       _readOnlyPeers = _peers.Values.AsArdkReadOnly();
     }
@@ -104,7 +104,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
       JoinedSessionMetadata = metadata;
 
       Self = new _MockPeer(Guid.NewGuid(), StageIdentifier);
-      Host = _virtualStudioManager.MultipeerMediator.GetHostIfSet(metadata) ?? Self;
+      Host = _virtualStudioSessionsManager.MultipeerMediator.GetHostIfSet(metadata) ?? Self;
       IsConnected = true;
 
       // Raise Connected event before calling AddPeer (which will raise AddedPeer),
@@ -113,11 +113,11 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
       if (handler != null)
         handler(new ConnectedArgs(Self, Host));
 
-      if (_virtualStudioManager == null || _virtualStudioManager.MultipeerMediator == null)
+      if (_virtualStudioSessionsManager == null || _virtualStudioSessionsManager.MultipeerMediator == null)
         return;
 
       var connectedNetworkings =
-        _virtualStudioManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
+        _virtualStudioSessionsManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
 
       if (connectedNetworkings != null && connectedNetworkings.Count > 0)
       {
@@ -140,7 +140,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
         return;
 
       var connectedNetworkings =
-        _virtualStudioManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
+        _virtualStudioSessionsManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
 
       if (connectedNetworkings != null && connectedNetworkings.Count > 0)
       {
@@ -190,7 +190,25 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
         ARLog._Error("Cannot send data to peers while not connected to a networking session.");
         return;
       }
+      
+      if (peers == null)
+        throw new ArgumentNullException(nameof(peers));
+      
+      // If peers is empty, broadcast the message
+      if (peers.Count() == 0)
+      {
+        if (OtherPeers.Count == 0)
+        {
+          if (sendToSelf)
+            ReceiveDataFromPeer(tag, Self, transportType, data);
 
+          return;
+        }
+        
+        SendDataToPeers(tag, data, OtherPeers, transportType, sendToSelf);
+        return;
+      }
+      
       // In the native implementation, the local peer would always receive the message before
       // other peers (since it is a local event and not sent through the network) if sending
       // to self, which is why this ordering should be maintained.
@@ -201,7 +219,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
       {
         var mockPeer = (_MockPeer) peer;
         var receiverNetworking =
-          _virtualStudioManager.MultipeerMediator.GetSession(mockPeer.StageIdentifier);
+          _virtualStudioSessionsManager.MultipeerMediator.GetSession(mockPeer.StageIdentifier);
 
         receiverNetworking.ReceiveDataFromPeer(tag, Self, transportType, data);
       }
@@ -242,6 +260,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
     /// </summary>
     internal ArdkEventHandler<PeerDataReceivedArgs> ArmDataReceivedFromClient;
 
+#pragma warning disable 0618
     public void SendDataToArm(uint tag, byte[] data)
     {
       var handler = ArmDataReceivedFromClient;
@@ -251,11 +270,12 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
         handler(args);
       }
     }
-
+#pragma warning restore 0618
+    
     public void StorePersistentKeyValue(string key, byte[] value)
     {
       var connectedNetworkings =
-        _virtualStudioManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
+        _virtualStudioSessionsManager.MultipeerMediator.GetConnectedSessions(StageIdentifier);
 
       foreach (var networking in connectedNetworkings)
         networking.ReceivePersistentKeyValue(key, value);
@@ -296,42 +316,6 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
         handler(new PeerRemovedArgs(peer));
     }
 
-    /// <summary>
-    /// Call to invoke a DataReceivedFromArm event on this _MockNetworkingCommandsRouter.
-    /// </summary>
-    /// <param name="args"></param>
-    internal void _ReceiveDataFromArm(DataReceivedFromArmArgs args)
-    {
-      var handler = DataReceivedFromArm;
-
-      if (handler != null)
-        handler(args);
-    }
-
-    /// <summary>
-    /// Call to invoke a SessionStatusReceivedFromArm event on this _MockNetworkingCommandsRouter.
-    /// </summary>
-    /// <param name="args"></param>
-    internal void _ReceiveStatusFromArm(SessionStatusReceivedFromArmArgs args)
-    {
-      var handler = SessionStatusReceivedFromArm;
-
-      if (handler != null)
-        handler(args);
-    }
-
-    /// <summary>
-    /// Call to invoke a SessionResultReceivedFromArm event on this _MockNetworkingCommandsRouter.
-    /// </summary>
-    /// <param name="args"></param>
-    internal void _ReceiveResultFromArm(SessionResultReceivedFromArmArgs args)
-    {
-      var handler = SessionResultReceivedFromArm;
-
-      if (handler != null)
-        handler(args);
-    }
-
     public RuntimeEnvironment RuntimeEnvironment
     {
       get { return RuntimeEnvironment.Mock; }
@@ -342,6 +326,11 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
       return string.Format("_MockMultipeerNetworking (ID: {0})", StageIdentifier);
     }
 
+    internal int _GetLatestArbeRttMeasurement()
+    {
+      return 0;
+    }
+
     public event ArdkEventHandler<ConnectionFailedArgs> ConnectionFailed;
     public event ArdkEventHandler<DisconnectedArgs> Disconnected;
     public event ArdkEventHandler<PeerDataReceivedArgs> PeerDataReceived;
@@ -349,10 +338,6 @@ namespace Niantic.ARDK.VirtualStudio.Networking.Mock
     public event ArdkEventHandler<PeerRemovedArgs> PeerRemoved;
     public event ArdkEventHandler<PersistentKeyValueUpdatedArgs> PersistentKeyValueUpdated;
     public event ArdkEventHandler<DeinitializedArgs> Deinitialized;
-
-    public event ArdkEventHandler<DataReceivedFromArmArgs> DataReceivedFromArm;
-    public event ArdkEventHandler<SessionStatusReceivedFromArmArgs> SessionStatusReceivedFromArm;
-    public event ArdkEventHandler<SessionResultReceivedFromArmArgs> SessionResultReceivedFromArm;
 
     private ArdkEventHandler<ConnectedArgs> _connected;
     public event ArdkEventHandler<ConnectedArgs> Connected

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -102,11 +102,11 @@ namespace Niantic.ARDK.VirtualStudio.Networking
         _ReferenceComparer<IMultipeerNetworking>.Instance
       );
 
-    private _IVirtualStudioManager _virtualStudioManager;
+    private _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
-    public _MockNetworkingSessionsMediator(_IVirtualStudioManager virtualStudioMaster)
+    public _MockNetworkingSessionsMediator(_IVirtualStudioSessionsManager virtualStudioSessionsManager)
     {
-      _virtualStudioManager = virtualStudioMaster;
+      _virtualStudioSessionsManager = virtualStudioSessionsManager;
 
       MultipeerNetworkingFactory.NetworkingInitialized += HandleAnyInitialized;
       MultipeerNetworkingFactory._NonLocalNetworkingInitialized += HandleAnyInitialized;
@@ -142,7 +142,7 @@ namespace Niantic.ARDK.VirtualStudio.Networking
           source,
           ServerConfiguration.ARBE,
           stageIdentifier,
-          _virtualStudioManager,
+          _virtualStudioSessionsManager,
           isLocal: false
         );
 

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.ARSessionEventArgs;
@@ -14,17 +14,17 @@ namespace Niantic.ARDK.Extensions
   /// when the session is deinitialized, because that automatically cleans up the callbacks on its
   /// own).
   /// Implement ListenToSession to add callbacks to events, and StopListeningToSession to remove the
-  /// callbacks. Both guarantee that _arSession will be a valid non-null ARSession.
+  /// callbacks. Both guarantee that ARSession will be a valid non-null ARSession.
   public abstract class ARSessionListener: 
     ARConfigChanger
   {
     /// The latest initialized ARSession, reset to null whenever the session is deinitialized.
     /// It is not necessarily running.
-    protected IARSession _arSession = null;
+    protected IARSession ARSession { get; private set; } = null;
 
-    /// Implement this method to add callbacks to _arSession.
+    /// Implement this method to add callbacks to ARSession.
     protected abstract void ListenToSession();
-    /// Implement this method to remove any callbacks added to _arSession in ListenToSession.
+    /// Implement this method to remove any callbacks added to ARSession in ListenToSession.
     protected abstract void StopListeningToSession();
     /// Override this method with any cleanup behaviour for session deinitialization. 
     protected virtual void OnSessionDeinitialized() {}
@@ -38,27 +38,27 @@ namespace Niantic.ARDK.Extensions
 
     protected override void DeinitializeImpl()
     {
-      if (AreFeaturesEnabled && _arSession != null)
+      if (AreFeaturesEnabled && ARSession != null)
         StopListeningToSession();
 
       ARSessionFactory.SessionInitialized -= OnSessionInitialized;
-      if(_arSession != null)
-        _arSession.Deinitialized -= _OnSessionDeinitialized;
+      if(ARSession != null)
+        ARSession.Deinitialized -= _OnSessionDeinitialized;
       
-      _arSession = null;
+      ARSession = null;
       
       base.DeinitializeImpl();
     }
 
     private void OnSessionInitialized(AnyARSessionInitializedArgs args)
     {
-      if (_arSession != null)
-        _arSession.Deinitialized -= _OnSessionDeinitialized;
+      if (ARSession != null)
+        ARSession.Deinitialized -= _OnSessionDeinitialized;
       
-      _arSession = args.Session;
-      _arSession.Deinitialized += _OnSessionDeinitialized;
+      ARSession = args.Session;
+      ARSession.Deinitialized += _OnSessionDeinitialized;
 
-      // _arSession is guaranteed to not be null, so check the other condition.
+      // ARSession is guaranteed to not be null, so check the other condition.
       if (AreFeaturesEnabled)
         ListenToSession();
     }
@@ -66,7 +66,7 @@ namespace Niantic.ARDK.Extensions
     private void _OnSessionDeinitialized(ARSessionDeinitializedArgs args)
     {
       OnSessionDeinitialized();
-      _arSession = null;
+      ARSession = null;
     }
 
     protected override void EnableFeaturesImpl()
@@ -74,7 +74,7 @@ namespace Niantic.ARDK.Extensions
       base.EnableFeaturesImpl();
       
       // Features are guaranteed to be enabled, so check the other condition.
-      if (_arSession != null)
+      if (ARSession != null)
         ListenToSession();
     }
 
@@ -82,7 +82,7 @@ namespace Niantic.ARDK.Extensions
     {
       base.DisableFeaturesImpl();
       
-      if (_arSession != null)
+      if (ARSession != null)
         StopListeningToSession();
     }
   }

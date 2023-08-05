@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
@@ -34,7 +34,7 @@ namespace Niantic.ARDK.AR.Anchors
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return (PlaneAlignment)_NARPlaneAnchor_GetAlignment(_NativeHandle);
         #pragma warning disable 0162
         else
@@ -47,7 +47,7 @@ namespace Niantic.ARDK.AR.Anchors
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return (PlaneClassification)_NARPlaneAnchor_GetClassification(_NativeHandle);
         #pragma warning disable 0162
         else
@@ -60,7 +60,7 @@ namespace Niantic.ARDK.AR.Anchors
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           return (PlaneClassificationStatus)_NARPlaneAnchor_GetClassificationStatus(_NativeHandle);
         #pragma warning disable 0162
         else
@@ -74,7 +74,7 @@ namespace Niantic.ARDK.AR.Anchors
       get
       {
         var nativeCenter = new float[3];
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARPlaneAnchor_GetCenter(_NativeHandle, nativeCenter);
 
         var center =
@@ -94,7 +94,7 @@ namespace Niantic.ARDK.AR.Anchors
       get
       {
         var nativeExtent = new float[3];
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           _NARPlaneAnchor_GetExtent(_NativeHandle, nativeExtent);
 
         return
@@ -112,7 +112,7 @@ namespace Niantic.ARDK.AR.Anchors
       get
       {
         IntPtr geometryHandle = IntPtr.Zero;
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
           geometryHandle = _NARPlaneAnchor_GetGeometry(_NativeHandle);
 
         if (geometryHandle == IntPtr.Zero)

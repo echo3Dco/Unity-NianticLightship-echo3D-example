@@ -1,4 +1,6 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
+
+using System;
 
 using Niantic.ARDK.AR;
 using Niantic.ARDK.AR.Configuration;
@@ -33,9 +35,43 @@ namespace Niantic.ARDK.Extensions.Meshing
     [Tooltip("Target size of a mesh block in meters")]
     private float _targetBlockSize = 1.4f;
 
+    public enum MeshingMode
+    {
+      ShortRangeHighDetail = 0,
+      HighRangeLowDetail = 1,
+      Custom = 2
+    }
+
     [SerializeField]
-    [Tooltip("Radius in meters of the meshed surface around the player. 0 means 'Infinity'")]
-    private float _meshingRadius = 0;
+    [Tooltip("Maximum distance in meters from device to mesh block until mesh blocks are deleted. 0 means 'Infinity'")]
+    private float _meshDecimationThreshold = 0;
+
+    // @note This is an experimental feature. Experimental features should not be used in production
+    // products as they are subject to breaking changes, not officially supported, and may be
+    // deprecated without notice.
+    [SerializeField]
+    private MeshingMode _meshingMode = MeshingMode.ShortRangeHighDetail;
+
+    // Needed to display warning panel in inspector.
+    [HideInInspector]
+    public bool UseCustomMeshingMode = false;
+
+    [SerializeField]
+    [Tooltip("Maximum distance of depth information used for meshing in meters.")]
+    [ConditionalHide("UseCustomMeshingMode", false)]
+    private float _meshingRangeMax = 5f;
+
+    [SerializeField]
+    [Tooltip("Length of each voxel edge in meters.")]
+    [ConditionalHide("UseCustomMeshingMode", false)]
+    private float _voxelSize = 0.025f;
+
+    // @note This is an experimental feature. Experimental features should not be used in production
+    // products as they are subject to breaking changes, not officially supported, and may be
+    // deprecated without notice.
+    [SerializeField]
+    [Tooltip("Save memory and improve performance by cleaning up out-of-range volumetric data used to build the mesh. This is an experimental feature.")]
+    private bool _boundedVolumetricRange = false;
 
     [Header("Mesh Generation Settings")]
     [SerializeField]
@@ -77,6 +113,8 @@ namespace Niantic.ARDK.Extensions.Meshing
     )]
     private Material _invisibleMaterial;
 
+    /// The value specifying the how many times the meshing routine
+    /// should target running per second.
     public uint TargetFrameRate
     {
       get { return _targetFrameRate; }
@@ -90,6 +128,19 @@ namespace Niantic.ARDK.Extensions.Meshing
       }
     }
 
+    public int ColliderUpdateThrottle
+    {
+      get { return _colliderUpdateThrottle; }
+      set
+      {
+        if (value != _colliderUpdateThrottle)
+        {
+          _colliderUpdateThrottle = value;
+        }
+      }
+    }
+
+    /// The value specifying the target size of a mesh block in meters
     public float TargetBlockSize
     {
       get { return _targetBlockSize; }
@@ -103,26 +154,130 @@ namespace Niantic.ARDK.Extensions.Meshing
       }
     }
 
+    /// The value specifying the distance, in meters, of the meshed surface around the player. Existing mesh blocks are
+    /// decimated when distance to device is bigger than this threshold. Minimum distance is maximum meshing range.
+    /// @note A value of 0 represents 'Infinity'
+    [Obsolete("This property is obsolete. Use MeshDecimationThreshold instead.", false)]
     public float MeshingRadius
     {
-      get { return _meshingRadius; }
+      get { return _meshDecimationThreshold; }
       set
       {
-        if (value > 0 && value < 5)
+        if (value > 0 && value < MeshingRangeMax)
         {
-          ARLog._Error(MeshingRadiusError);
+          ARLog._Error(MeshDecimationThresholdError);
           return;
         }
 
-        if (!Mathf.Approximately(_meshingRadius, value))
+        if (!Mathf.Approximately(_meshDecimationThreshold, value))
         {
-          _meshingRadius = value;
+          _meshDecimationThreshold = value;
           RaiseConfigurationChanged();
         }
       }
     }
 
-    /// When true, mesh block GameObjects will not be updated
+    /// The value specifying the distance, in meters, of the meshed surface around the player. Existing mesh blocks are
+    /// decimated when distance to device is bigger than this threshold. Minimum distance is maximum meshing range.
+    /// @note A value of 0 represents 'Infinity'
+    public float MeshDecimationThreshold
+    {
+      get { return _meshDecimationThreshold; }
+      set
+      {
+        if (value > 0 && value < MeshingRangeMax)
+        {
+          ARLog._Error(MeshDecimationThresholdError);
+          return;
+        }
+
+        if (!Mathf.Approximately(_meshDecimationThreshold, value))
+        {
+          _meshDecimationThreshold = value;
+          RaiseConfigurationChanged();
+        }
+      }
+    }
+
+    /// The value specifying the maximum range in meters of a depth measurement / estimation used for meshing.
+    public float MeshingRangeMax
+    {
+      get { return _meshingRangeMax; }
+      set
+      {
+        if (value <= 0)
+        {
+          ARLog._Error("The maximum meshing range must be larger than zero.");
+          return;
+        }
+
+        if (!Mathf.Approximately(_meshingRangeMax, value))
+        {
+          _meshingRangeMax = value;
+          RaiseConfigurationChanged();
+        }
+      }
+    }
+
+    /// The value specifying the edge length of the meshing voxels in meters.
+    public float VoxelSize
+    {
+      get { return _voxelSize; }
+      set
+      {
+        if (value <= 0)
+        {
+          ARLog._Error("Voxel Size must be higher than zero.");
+          return;
+        }
+
+        if (!Mathf.Approximately(_voxelSize, value))
+        {
+          _voxelSize = value;
+          RaiseConfigurationChanged();
+        }
+      }
+    }
+
+    /// Whether to cleanup underlying volumetric data out-of-range of the user.
+    public bool BoundedVolumetricRangeEnabled
+    {
+      get { return _boundedVolumetricRange; }
+      set {
+        _boundedVolumetricRange = value;
+        RaiseConfigurationChanged();
+      }
+    }
+
+    public MeshingMode SelectedMeshingMode
+    {
+      get { return _meshingMode; }
+      set
+      {
+        _meshingMode = value;
+
+        switch (_meshingMode)
+        {
+          case MeshingMode.ShortRangeHighDetail:
+            VoxelSize = 0.025f;
+            MeshingRangeMax = 5f;
+            break;
+
+          case MeshingMode.HighRangeLowDetail:
+            VoxelSize = 0.05f;
+            MeshingRangeMax = 10f;
+            break;
+
+          case MeshingMode.Custom:
+            break;
+
+          default:
+            throw new ArgumentOutOfRangeException();
+        }
+      }
+    }
+
+    /// When false, mesh block GameObjects will not be updated
     /// (a running ARSession will still surface mesh updates).
     public bool GenerateUnityMeshes
     {
@@ -130,6 +285,11 @@ namespace Niantic.ARDK.Extensions.Meshing
       set { _generateUnityMeshes = value; }
     }
 
+    /// The prefab to instantiate and update for each mesh block.
+    /// @note
+    ///   This GameObject requires a MeshFilter component, and will update a MeshCollider
+    ///   component if able. A MeshRenderer component is optional, but required for the
+    ///   SetUseInvisibleMaterial method.
     public GameObject MeshPrefab
     {
       get { return _meshPrefab; }
@@ -149,6 +309,8 @@ namespace Niantic.ARDK.Extensions.Meshing
       }
     }
 
+    /// Parent of every block (piece of mesh). If empty, this is assigned to this component's
+    /// GameObject when initialized.
     public GameObject MeshRoot
     {
       get { return _meshRoot; }
@@ -186,8 +348,8 @@ namespace Niantic.ARDK.Extensions.Meshing
     {
       get
       {
-        if (_arSession != null)
-          return _arSession.Mesh;
+        if (ARSession != null)
+          return ARSession.Mesh;
 
         return null;
       }
@@ -196,13 +358,24 @@ namespace Niantic.ARDK.Extensions.Meshing
     // Used to track when the Inspector-public variables are changed in OnValidate
     private uint _prevTargetFrameRate;
     private float _prevTargetBlockSize;
-    private float _prevMeshingRadius;
+    private float _prevMeshDecimationThreshold;
+    private MeshingMode _prevMeshingMode;
 
     private bool _clearMeshOnRerun = false;
 
     private MeshObjectsGenerator _generator;
-    private const string MeshingRadiusError =
-      "The smallest meshing radius possible is 5 meters. Set the value to 0 for an infinite radius.";
+
+    public MeshObjectsGenerator Generator
+    {
+      get
+      {
+        return _generator;
+      }
+    }
+
+    private const string MeshDecimationThresholdError =
+      "The smallest mesh decimation threshold possible is the maximum meshing range " +
+      "distance. Set the value to 0 for an infinite distance.";
 
     protected override void InitializeImpl()
     {
@@ -233,7 +406,9 @@ namespace Niantic.ARDK.Extensions.Meshing
 
       _prevTargetFrameRate = _targetFrameRate;
       _prevTargetBlockSize = _targetBlockSize;
-      _prevMeshingRadius = _meshingRadius;
+      _prevMeshDecimationThreshold = _meshDecimationThreshold;
+      _prevMeshingMode = _meshingMode;
+
       RaiseConfigurationChanged();
     }
 
@@ -252,7 +427,7 @@ namespace Niantic.ARDK.Extensions.Meshing
       _generator =
         new MeshObjectsGenerator
         (
-          _arSession.Mesh,
+          ARSession.Mesh,
           _meshRoot,
           _meshPrefab,
           _invisibleMaterial,
@@ -261,7 +436,7 @@ namespace Niantic.ARDK.Extensions.Meshing
 
       SetUseInvisibleMaterial(_useInvisibleMaterial);
 
-      _arSession.Mesh.MeshBlocksUpdated += OnMeshUpdated;
+      ARSession.Mesh.MeshBlocksUpdated += OnMeshUpdated;
 
       _generator.MeshObjectsUpdated += OnMeshObjectsUpdated;
       _generator.MeshObjectsCleared += OnMeshObjectsCleared;
@@ -269,15 +444,15 @@ namespace Niantic.ARDK.Extensions.Meshing
 
     protected override void StopListeningToSession()
     {
-      _arSession.Mesh.MeshBlocksUpdated -= OnMeshUpdated;
-      
+      ARSession.Mesh.MeshBlocksUpdated -= OnMeshUpdated;
+
       _generator.MeshObjectsUpdated -= OnMeshObjectsUpdated;
       _generator.MeshObjectsCleared -= OnMeshObjectsCleared;
     }
 
-    internal override void _ApplyARConfigurationChange
+    public override void ApplyARConfigurationChange
     (
-      _ARSessionChangesCollector._ARSessionRunProperties properties
+      ARSessionChangesCollector.ARSessionRunProperties properties
     )
     {
       if (properties.ARConfiguration is IARWorldTrackingConfiguration worldConfig)
@@ -285,7 +460,10 @@ namespace Niantic.ARDK.Extensions.Meshing
         worldConfig.IsMeshingEnabled = AreFeaturesEnabled;
         worldConfig.MeshingTargetFrameRate = TargetFrameRate;
         worldConfig.MeshingTargetBlockSize = TargetBlockSize;
-        worldConfig.MeshingRadius = MeshingRadius;
+        worldConfig.MeshDecimationThreshold = MeshDecimationThreshold;
+        worldConfig.MeshingRangeMax = MeshingRangeMax;
+        worldConfig.VoxelSize = VoxelSize;
+        worldConfig.BoundedVolumetricRangeEnabled = BoundedVolumetricRangeEnabled;
 
         if (_clearMeshOnRerun)
         {
@@ -354,6 +532,11 @@ namespace Niantic.ARDK.Extensions.Meshing
       RaiseConfigurationChanged();
     }
 
+    public void SetRendererEnabled(bool isEnabled)
+    {
+       _generator?.SetRendererEnabled(isEnabled);
+    }
+
     // Callback on the ARSession.Mesh.MeshBlocksUpdated event.
     // Generates new Unity meshes if required.
     private void OnMeshUpdated(MeshBlocksUpdatedArgs args)
@@ -378,6 +561,35 @@ namespace Niantic.ARDK.Extensions.Meshing
 
     private void OnValidate()
     {
+      if (_prevMeshingMode != _meshingMode)
+      {
+        _prevMeshingMode = _meshingMode;
+
+        switch (_meshingMode)
+        {
+          case MeshingMode.ShortRangeHighDetail:
+            UseCustomMeshingMode = false;
+            _voxelSize = 0.025f;
+            _meshingRangeMax = 5f;
+            break;
+
+          case MeshingMode.HighRangeLowDetail:
+            UseCustomMeshingMode = false;
+            _voxelSize = 0.05f;
+            _meshingRangeMax = 10f;
+            break;
+
+          case MeshingMode.Custom:
+            UseCustomMeshingMode = true;
+            break;
+
+          default:
+            throw new ArgumentOutOfRangeException();
+        }
+
+        RaiseConfigurationChanged();
+      }
+
       if (_prevTargetFrameRate != _targetFrameRate)
       {
         _prevTargetFrameRate = _targetFrameRate;
@@ -390,17 +602,17 @@ namespace Niantic.ARDK.Extensions.Meshing
         RaiseConfigurationChanged();
       }
 
-      if (!Mathf.Approximately(_prevMeshingRadius, _meshingRadius))
+      if (!Mathf.Approximately(_prevMeshDecimationThreshold, _meshDecimationThreshold))
       {
-        if (_meshingRadius > 0 && _meshingRadius < 5)
+        if (_meshDecimationThreshold > 0 && _meshDecimationThreshold < MeshingRangeMax)
         {
-          ARLog._Error(MeshingRadiusError);
-          _meshingRadius = 5;
+          ARLog._Error(MeshDecimationThresholdError);
+          _meshDecimationThreshold = 5;
         }
 
-        if (!Mathf.Approximately(_prevMeshingRadius, _meshingRadius))
+        if (!Mathf.Approximately(_prevMeshDecimationThreshold, _meshDecimationThreshold))
         {
-          _prevMeshingRadius = _meshingRadius;
+          _prevMeshDecimationThreshold = _meshDecimationThreshold;
           RaiseConfigurationChanged();
         }
       }

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System.Collections.ObjectModel;
 
@@ -17,7 +17,7 @@ namespace Niantic.ARDK.AR.ARSessionEventArgs
       Children = new ReadOnlyCollection<IARAnchor>(children);
     }
 
-    public IARAnchor Parent { get; private set; }
-    public ReadOnlyCollection<IARAnchor> Children { get; private set; }
+    public IARAnchor Parent { get; }
+    public ReadOnlyCollection<IARAnchor> Children { get; }
   }
 }

@@ -27,17 +27,18 @@
             {
                 "LightMode" = "Always"
             }
-            
+
             GLSLPROGRAM
 
             #pragma multi_compile_local __ DEPTH_ZWRITE
+            #pragma multi_compile_local __ DEPTH_COMPRESSION
             #pragma multi_compile_local __ DEPTH_SUPPRESSION
             #pragma multi_compile_local __ DEPTH_DEBUG
 
             #pragma only_renderers gles3
 
             #include "UnityCG.glslinc"
-            
+
 #ifdef VERTEX
 
             // Transform used to sample the color planes
@@ -55,7 +56,7 @@
             void main()
             {
                 #ifdef SHADER_API_GLES3
-                
+
                 // Transform UVs for the color texture
                 vec4 texCoord = vec4(gl_MultiTexCoord0.x, gl_MultiTexCoord0.y, 0.0f, 1.0f);
                 _colorUV = (_displayTransform * texCoord).xy;
@@ -74,13 +75,13 @@
 
                 // Transform vertex position
                 gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-                
+
                 #endif
             }
 #endif
 
 #ifdef FRAGMENT
-            
+
             // Transformation used to convert yCbCr color format to RGB
             const mat4 colorTransform = mat4(
                 vec4(1.0, 1.0, 1.0, 0.0),
@@ -94,9 +95,8 @@
             varying vec3 _depthUV;
             varying vec3 _semanticsUV;
 
-            // Depth range used for scaling
-            uniform float _depthScaleMin;
-            uniform float _depthScaleMax;
+            // Used to Linearise values of the depth texture
+            uniform vec4 _DepthBufferParams;
 
             uniform sampler2D _textureDepth;
             uniform sampler2D _textureDepthSuppressionMask;
@@ -106,17 +106,23 @@
 #if defined(SHADER_API_GLES3) && defined(DEPTH_ZWRITE)
 
             uniform vec4 _ZBufferParams;
-            
+
+            // Z buffer to linear depth
+            float LinearEyeDepth(float z, vec4 zparams)
+            {
+              return 1.0f / (zparams.z * z + zparams.w);
+            }
+
             // Inverse of LinearEyeDepth
             float EyeDepthToNonLinear(float eyeDepth)
-            {   
+            {
                 return (1.0f - (eyeDepth * _ZBufferParams.w)) / (eyeDepth * _ZBufferParams.z);
-            }         
-#endif            
+            }
+#endif
             void main()
-            {      
+            {
 #ifdef SHADER_API_GLES3
-                
+
                 // Convert the biplanar image to RGB
                 vec4 color = colorTransform *
                     vec4(texture(_textureY, _colorUV).x, texture(_textureCbCr, _colorUV).xy, 1.0f);
@@ -135,22 +141,25 @@
                         vec2 depthUV = vec2(_depthUV.x / _depthUV.z, _depthUV.y / _depthUV.z);
                         float rawDepth = texture(_textureDepth, depthUV).x;
 
-                        // Scale depth in case it is normalized
-                        // Note: If depth is not normalized, min and max should
-                        // be 0 and 1 respectively to leave the value intact
-                        float scaledDepth = rawDepth * (_depthScaleMax - _depthScaleMin) + _depthScaleMin;
+    #ifdef DEPTH_COMPRESSION
+                        // In case of ARGB textures, the depth value is compressed to 8 bits, nonlinear
+                        // Here, we convert this value to linear eye depth
+                        float eyeDepth = LinearEyeDepth(rawDepth, _DepthBufferParams);
+    #else
+                        float eyeDepth = rawDepth;
+    #endif  // DEPTH_COMPRESSION
 
                         // Convert depth to z-value and write the zbuffer
-                        depth = EyeDepthToNonLinear(scaledDepth);
+                        depth = EyeDepthToNonLinear(eyeDepth);
 
                         #ifdef DEPTH_DEBUG
                         // Write disparity to the color channels for debug purposes
                         float MAX_VIEW_DISP = 4.0f;
-                        float scaledDisparity = 1.0f/scaledDepth;
+                        float scaledDisparity = 1.0f/eyeDepth;
                         float normDisparity = scaledDisparity/MAX_VIEW_DISP;
                         color = vec4(normDisparity, normDisparity, normDisparity, 1.0f);
-                        #endif 
-                    }     
+                        #endif
+                    }
     #endif
                 gl_FragColor = color;
                 gl_FragDepth = depth;
@@ -162,6 +171,6 @@
             ENDGLSL
         }
     }
-    
+
     Fallback Off
 }

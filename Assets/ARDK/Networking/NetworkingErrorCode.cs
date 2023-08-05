@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System;
 
 namespace Niantic.ARDK.Networking

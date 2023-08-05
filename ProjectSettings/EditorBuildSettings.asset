@@ -5,10 +5,13 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/ARDKExamples/ContextAwareness/Segmentation/SemanticSegmentation.unity
-    guid: b31f157add5014c85962f656eefdf04d
   - enabled: 1
-    path: Assets/ARDKExamples/PlaneAnchors/PlaneAnchors.unity
-    guid: bfba5cea385a241f3af07584baef9462
-  m_configObjects: {}
+    path: Assets/Scenes/ARDK-echo3D-Example.unity
+    guid: 4e76525d5ab7c1048a22d6980bfe0be2
+  m_configObjects:
+    com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: 12b20e53f3b90df49a715014dafcf922,
+      type: 2}
+    com.unity.adaptiveperformance.samsung.android.provider_settings: {fileID: 11400000,
+      guid: 49117dd97b3360a4f954b806b1c30394, type: 2}
+    com.unity.adaptiveperformance.simulator.provider_settings: {fileID: 11400000,
+      guid: 5c82092cf893a7c45bd2546e2763109a, type: 2}

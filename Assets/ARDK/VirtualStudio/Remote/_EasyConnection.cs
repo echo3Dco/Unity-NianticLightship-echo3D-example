@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
@@ -154,7 +154,9 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       return _executors.TryRemove(typeof(T), out _);
     }
 
+#pragma warning disable 612, 618 
     public static void Send(object message, TransportType transportType = TransportType.ReliableUnordered)
+#pragma warning restore 612, 618 
     {
       if (message == null)
         throw new ArgumentNullException(nameof(message));

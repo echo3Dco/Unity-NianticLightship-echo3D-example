@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 namespace Niantic.ARDK.Utilities.VersionUtilities
 {
@@ -10,12 +10,7 @@ namespace Niantic.ARDK.Utilities.VersionUtilities
     {
       get
       {
-        if (_impl == null)
-        {
-          _impl = new _NativeARDKVersion();
-        }
-
-        return _impl;
+        return _impl ??= new _NativeARDKVersion();
       }
     }
 

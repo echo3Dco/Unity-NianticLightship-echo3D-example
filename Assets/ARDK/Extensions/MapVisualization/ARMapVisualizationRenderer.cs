@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -15,6 +15,14 @@ using UnityEngine;
 
 namespace Niantic.ARDK.Extensions.MapVisualization
 {
+  /// @brief Helper class that visualizes scanned maps used for AR localization.
+  ///
+  /// Listens for new AR localization maps and instantiates visualization prefabs
+  /// for each new map. To use, add an instance to your scene.
+  /// Map visualizations are only valid when the AR localization is
+  /// in a stable state where 
+  /// [PeerState](@ref Niantic.ARDK.AR.Networking.PeerState) is 
+  /// ```Stable``` or ```Stabilizing```.
   public class ARMapVisualizationRenderer: 
     MonoBehaviour
   {

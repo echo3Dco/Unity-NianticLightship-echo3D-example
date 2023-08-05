@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -216,9 +216,11 @@ namespace Niantic.ARDK.Networking.HLAPI
         else
         {
           //If the transport type is not reliable, do not cache the data
-          bool shouldSkip = 
+#pragma warning disable 612, 618
+          bool shouldSkip =
             replicationMode.Transport != TransportType.ReliableOrdered &&
             replicationMode.Transport != TransportType.ReliableUnordered;
+#pragma warning restore 612, 618 
           
           if (shouldSkip)
             continue;

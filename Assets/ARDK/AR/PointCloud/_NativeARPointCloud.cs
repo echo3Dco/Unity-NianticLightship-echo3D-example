@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.ObjectModel;
@@ -17,7 +17,7 @@ namespace Niantic.ARDK.AR.PointCloud
   {
     static _NativeARPointCloud()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     private IntPtr _nativeHandle;
@@ -39,7 +39,7 @@ namespace Niantic.ARDK.AR.PointCloud
 
     private static void _ReleaseImmediate(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARPointCloud_Release(nativeHandle);
     }
 
@@ -75,7 +75,7 @@ namespace Niantic.ARDK.AR.PointCloud
 
         var points = EmptyArray<Vector3>.Instance;
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {
@@ -116,7 +116,7 @@ namespace Niantic.ARDK.AR.PointCloud
 
         var identifiers = EmptyArray<ulong>.Instance;
 
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         {
           while (true)
           {

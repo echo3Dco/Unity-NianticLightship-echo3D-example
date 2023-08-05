@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
@@ -63,9 +63,7 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
     private static
       ConcurrentDictionary<Guid, IMessageStreamReplicator<NetworkId>> _destructorMessageStreams =
         new ConcurrentDictionary<Guid, IMessageStreamReplicator<NetworkId>>();
-
-    private static IMessageStreamReplicator<NetworkId> _destructorMessageStream;
-
+    
     // Some hard coded random values so that all peers are in agreement of network spawning
     // groups/channels.
     private const ulong SpawnGroupId = 94842342L;
@@ -105,6 +103,8 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
           .GetOrCreateManagedSession()
           .CreateAndRegisterGroup(new NetworkId(SpawnGroupId));
 
+// keep using deprecated functionality for now, to not break things out of the box
+#pragma warning disable 0618
       var streamReplicator =
         new MessageStreamReplicator<SpawnMessage>
         (
@@ -112,7 +112,6 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
           multipeerNetworking.AnyToAnyDescriptor(TransportType.ReliableOrdered),
           netSpawnerGroup
         );
-
       _spawnMessageStreams[multipeerNetworking.StageIdentifier] = streamReplicator;
 
       streamReplicator.MessageReceived +=
@@ -125,6 +124,7 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
           multipeerNetworking.AnyToAnyDescriptor(TransportType.ReliableOrdered),
           netSpawnerGroup
         );
+#pragma warning restore 0618
 
       _destructorMessageStreams[multipeerNetworking.StageIdentifier] = destructorMessageStream;
 
@@ -451,35 +451,35 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
         return null;
       }
 
-      var newInstance = UnityEngine.Object.Instantiate(spawnObject);
-      newInstance.Networking = networking;
-      newInstance.SpawningPeer = networking.Self;
+      var networkedUnityObject = UnityEngine.Object.Instantiate(spawnObject);
+      networkedUnityObject.Networking = networking;
+      networkedUnityObject.SpawningPeer = networking.Self;
 
       if (position.HasValue)
-        newInstance.transform.position = position.Value;
+        networkedUnityObject.transform.position = position.Value;
 
       if (rotation.HasValue)
-        newInstance.transform.rotation = rotation.Value;
+        networkedUnityObject.transform.rotation = rotation.Value;
 
       if (newNetId.HasValue)
-        newInstance.Id = newNetId.Value;
+        networkedUnityObject.Id = newNetId.Value;
       else
       {
         _random.NextBytes(_idGenBuffer);
         var nextId = BitConverter.ToUInt64(_idGenBuffer, 0);
-        newInstance.Id = (NetworkId)nextId;
+        networkedUnityObject.Id = (NetworkId)nextId;
       }
 
       ARLog._DebugFormat
       (
         "Local peer NetworkSpawned object with PrefabId {0}, RawId {1}",
         false,
-        newInstance,
-        newInstance.Id.RawId
+        networkedUnityObject,
+        networkedUnityObject.Id.RawId
       );
 
       if (startingLocalRole.HasValue)
-        newInstance.Auth.TryClaimRole(startingLocalRole.Value, () => {}, () => {});
+        networkedUnityObject.Auth.TryClaimRole(startingLocalRole.Value, () => {}, () => {});
 
       if (targetPeers == null)
         targetPeers = networking.OtherPeers.ToList();
@@ -487,19 +487,19 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
       var message =
         new SpawnMessage()
         {
-          PrefabId = newInstance.PrefabId,
-          NewId = newInstance.Id,
-          Location = newInstance.transform.position,
-          Rotation = newInstance.transform.rotation,
+          PrefabId = networkedUnityObject.PrefabId,
+          NewId = networkedUnityObject.Id,
+          Location = networkedUnityObject.transform.position,
+          Rotation = networkedUnityObject.transform.rotation,
         };
 
       IMessageStreamReplicator<SpawnMessage> streamReplicator;
       if (_spawnMessageStreams.TryGetValue(networking.StageIdentifier, out streamReplicator))
         streamReplicator.SendMessage(message, targetPeers);
 
-      _spawnedObjects[newInstance.Id] = newInstance;
+      _spawnedObjects[networkedUnityObject.Id] = networkedUnityObject;
 
-      newInstance.Initialize();
+      networkedUnityObject.Initialize();
 
       var handler = NetworkObjectSpawned;
       if (handler != null)
@@ -507,15 +507,15 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
         var args =
           new NetworkObjectLifecycleArgs
           (
-            newInstance,
-            newInstance.Networking,
-            newInstance.Networking.Self
+            networkedUnityObject,
+            networkedUnityObject.Networking,
+            networkedUnityObject.Networking.Self
           );
 
         handler(args);
       }
 
-      return newInstance;
+      return networkedUnityObject;
     }
 
     /// <summary>
@@ -555,8 +555,7 @@ namespace Niantic.ARDK.Networking.HLAPI.Object.Unity
       var networking = networkedObject.Networking;
       if (networking != null)
       {
-        IMessageStreamReplicator<NetworkId> stream;
-        if (_destructorMessageStreams.TryGetValue(networking.StageIdentifier, out stream))
+        if (_destructorMessageStreams.TryGetValue(networking.StageIdentifier, out var stream))
           stream.SendMessage(networkedObject.Id, networking.OtherPeers);
       }
 

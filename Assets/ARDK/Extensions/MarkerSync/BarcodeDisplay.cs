@@ -1,44 +1,62 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using Niantic.ARDK.Utilities.Logging;
 using Niantic.ARDK.Utilities.Marker;
 using Niantic.ARDK.Utilities.QR;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 using ZXing;
 
-namespace Niantic.ARDK.Extensions.MarkerSync {
+namespace Niantic.ARDK.Extensions.MarkerSync
+{
   /// @note This is part of an experimental feature that is not advised to be used in release builds.
   public class BarcodeDisplay : MonoBehaviour
   {
-    /// <summary>
-    ///  The image component to draw the generated barcode to
-    /// </summary>
+    [FormerlySerializedAs("_image")]
     [SerializeField]
-    private RawImage _image = null;
+    [Tooltip("The image component to render the generated barcode to. It should be square.")]
+    private RawImage _barcodeImage = null;
 
-    /// <summary>
-    /// The image component for displaying a border around the generated barcode
-    /// </summary>
     [SerializeField]
+    [Tooltip("[Optional] The image component for displaying a border around the generated barcode. It should be square and larger than the BarcodeImage component.")]
     private RawImage _borderImage = null;
 
-    /// <summary>
-    /// The image component for hiding the view behind the barcode
-    /// </summary>
     [SerializeField]
+    [Tooltip("[Optional] The image component for hiding the view behind the barcode")]
     private RawImage _backgroundImage = null;
 
     [SerializeField]
     private BarcodeFormat _format = BarcodeFormat.QR_CODE;
 
+    /// The image component to render the generated barcode to. It should be square.
+    public RawImage BarcodeImage
+    {
+      get => _barcodeImage;
+      set => _barcodeImage = value;
+    }
+
+    /// Optional image component to render the barcode image's border to. It should be
+    /// square and larger than the BarcodeImage component.
+    public RawImage BorderImage
+    {
+      get => _borderImage;
+      set => _borderImage = value;
+    }
+
+    /// Optional image component that is enabled when the BarcodeImage is displayed to hide other
+    /// components on the screen. It should be behind the BarcodeImage component.
+    public RawImage BackgroundImage
+    {
+      get => _backgroundImage;
+      set => _backgroundImage = value;
+    }
+
+    /// The screenspace position of the BarcodeImage.
     public Vector2 Center { get; private set; }
 
-    /// <summary>
-    /// Each corner provides its screen space value.
-    /// The returned array of 4 vertices is clockwise.
-    /// It starts bottom left and rotates to top left, then top right, and finally bottom right.
-    /// </summary>
+    /// The screenspace positions of the generated barcode's borders.
+    /// The returned array of 4 vertices is clockwise, starting from the bottom left.
     public Vector2[] Points { get; private set; }
 
     private bool _generatedCode;
@@ -46,13 +64,13 @@ namespace Niantic.ARDK.Extensions.MarkerSync {
 
     private void Awake()
     {
-      if (_image == null)
+      if (_barcodeImage == null)
       {
         ARLog._Error("BarcodeDisplay requires a RawImage component to be assigned.");
         return;
       }
 
-      if (_image.canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+      if (_barcodeImage.canvas.renderMode != RenderMode.ScreenSpaceOverlay)
       {
         // Canvas must be in ScreenSpaceOverlay Source for pixel positions to be correct
         ARLog._Error("BarcodeDisplay requires the image be displayed on a ScreenSpaceOverlay canvas.");
@@ -65,7 +83,7 @@ namespace Niantic.ARDK.Extensions.MarkerSync {
 
     private void SetPixelPositions()
     {
-      var rectPosition = _image.rectTransform.position;
+      var rectPosition = _barcodeImage.rectTransform.position;
 
       // Todo: Get working for different anchors and offsets
       Center = new Vector2(rectPosition.x, rectPosition.y);
@@ -98,9 +116,9 @@ namespace Niantic.ARDK.Extensions.MarkerSync {
     {
       _isShowing = isEnabled;
 
-      if (_image != null)
+      if (_barcodeImage != null)
       {
-        _image.enabled = isEnabled;
+        _barcodeImage.enabled = isEnabled;
       }
 
       if (_borderImage != null)
@@ -122,7 +140,7 @@ namespace Niantic.ARDK.Extensions.MarkerSync {
     {
       _generatedCode = true;
 
-      var dimensions = _image.rectTransform.sizeDelta;
+      var dimensions = _barcodeImage.rectTransform.sizeDelta;
 
       var width = (int) dimensions.x;
       var height = (int) dimensions.y;
@@ -161,7 +179,7 @@ namespace Niantic.ARDK.Extensions.MarkerSync {
       }
 
       // Setup the RawImage
-      _image.texture = generatorResult.Texture;
+      _barcodeImage.texture = generatorResult.Texture;
 
       if (showAfterGenerating) {
         Show();

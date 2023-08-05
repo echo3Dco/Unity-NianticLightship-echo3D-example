@@ -1,7 +1,6 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System;
-using Niantic.ARDK.AR.Awareness;
-using Niantic.ARDK.AR.Camera;
-using Niantic.ARDK.Rendering;
+
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Logging;
 
@@ -11,10 +10,10 @@ namespace Niantic.ARDK.AR.Awareness
 {
   /// Base class for components that extract information from IAwarenessBuffer objects
   /// to be used in game logic and rendering.
-  public abstract class AwarenessBufferProcessor<TBuffer> 
+  public abstract class AwarenessBufferProcessor<TBuffer>
     where TBuffer: class, IAwarenessBuffer, IDisposable
   {
-    /// Event for when the context awareness feature stream has initialized and the 
+    /// Event for when the context awareness feature stream has initialized and the
     /// application received its initial frame.
     public event ArdkEventHandler<ContextAwarenessArgs<TBuffer>> AwarenessStreamBegan
     {
@@ -33,10 +32,22 @@ namespace Niantic.ARDK.AR.Awareness
 
     /// Alerts subscribers when either the contents of the awareness buffer
     /// or its sampler transform has changed.
-    public event ArdkEventHandler<ContextAwarenessStreamUpdatedArgs<TBuffer>> AwarenessStreamUpdated; 
+    public event ArdkEventHandler<ContextAwarenessStreamUpdatedArgs<TBuffer>> AwarenessStreamUpdated;
 
     /// The CPU copy of the latest awareness buffer
     public TBuffer AwarenessBuffer { get; private set; }
+    
+    /// This is a secondary data holder for context awareness.
+    /// An ARFrame either delivers a new buffer or not. When it
+    /// does deliver one, it is a keyframe buffer. Sometimes
+    /// ARFrames are dropped due to performance. In the case
+    /// when an ARFrame gets dropped that was supposed to deliver
+    /// a keyframe awareness buffer, we use this backbuffer to
+    /// capture it. We need this secondary data holder because
+    /// FrameDropped events are not executed on the main thread,
+    /// therefore we cannot just simply update the main data holder
+    /// since it might be in use.
+    private TBuffer AwarenessBackBuffer { get; set; }
 
     /// The current interpolation setting.
     public InterpolationMode InterpolationMode { get; set; }
@@ -48,7 +59,13 @@ namespace Niantic.ARDK.AR.Awareness
       get => _interpolationPreference;
       set => _interpolationPreference = Mathf.Clamp(value, 0.0f, 1.0f);
     }
-    
+
+    /// The resolution of the viewport, awareness buffers are being mapped to.
+    public Vector2Int CurrentViewportResolution
+    {
+      get => new Vector2Int(_lastTargetWidth, _lastTargetHeight);
+    }
+
     public void Dispose()
     {
       Dispose(true);
@@ -63,14 +80,14 @@ namespace Niantic.ARDK.AR.Awareness
     // Helper matrices
     private Matrix4x4 _displayTransform = Matrix4x4.identity;
     private Matrix4x4 _interpolationTransform = Matrix4x4.identity;
-    private Matrix4x4 _intrinsicsFit = Matrix4x4.identity;
+    private Matrix4x4 _arImageToBufferTransform = Matrix4x4.identity;
 
     /// This transform converts 2D normalized coordinates in buffer space to 3D points
     /// in camera space using the awareness buffer's orientation and intrinsics.
     /// This is primarily used to get camera space positions from depth,
     /// for example posInCamera = depth * BackProjectionTransform * screenUV.
     protected Matrix4x4 BackProjectionTransform { get; private set; }
-    
+
     // The camera to world matrix is the inverted view matrix,
     // matching the orientation of the buffer. It is used
     // to transform points from camera space to world space.
@@ -79,68 +96,66 @@ namespace Niantic.ARDK.AR.Awareness
     // The back-projection plane distance (for interpolation)
     // between the preset near and far clipping planes.
     private float _interpolationPreference = 0.9f;
-    
+
     // Cached state variables
     private ScreenOrientation _lastOrientation;
+    private int _lastTargetWidth, _lastTargetHeight;
     private bool _didReceiveFirstUpdate;
+    private bool _didUpdateAwarenessBuffer;
+
+    protected void _ProcessDroppedFrame_NonMainThread(IARFrame frame, TBuffer buffer) 
+    {
+      if (buffer == null)
+        return;
+
+      // Capture the dropped frame for context awareness
+      AwarenessBackBuffer?.Dispose();
+      AwarenessBackBuffer = buffer.GetCopy() as TBuffer;
+    }
 
     /// Updates the internal state of the context awareness stream.
     /// Calculates the transformation matrix used to map the buffer's
     /// contents to the target viewport. This is called the sampler transform.
     /// It's possible to call this API with a null buffer. In that case,
     /// only the sampler transform will be updated.
+    /// @param frame The AR frame to process.
     /// @param buffer If provided, the contents of the buffer will be copied to an internal cache.
-    /// @param arCamera The AR camera that captured the current frame.
-    /// @param unityCamera The rendering Unity camera.
-    [Obsolete("This method is deprecated, use ProcessFrame(TBuffer, IARCamera, Resolution, ScreenOrientation) instead.")]
-    protected void ProcessFrame(TBuffer buffer, IARCamera arCamera, UnityEngine.Camera unityCamera)
-    {
-      ProcessFrame
-      (
-        buffer: buffer,
-        arCamera: arCamera,
-        targetResolution: new Resolution
-        {
-          width = unityCamera.pixelWidth, height = unityCamera.pixelHeight
-        },
-        targetOrientation: RenderTarget.ScreenOrientation
-      );
-    }
-    
-    /// Updates the internal state of the context awareness stream.
-    /// Calculates the transformation matrix used to map the buffer's
-    /// contents to the target viewport. This is called the sampler transform.
-    /// It's possible to call this API with a null buffer. In that case,
-    /// only the sampler transform will be updated.
-    /// @param buffer If provided, the contents of the buffer will be copied to an internal cache.
-    /// @param arCamera The AR camera that captured the current frame.
     /// @param targetResolution The resolution of the target viewport.
     /// @param targetOrientation The orientation of the target viewport.
-    protected void ProcessFrame
+    protected void _ProcessFrame
     (
+      IARFrame frame,
       TBuffer buffer,
-      IARCamera arCamera,
       Resolution targetResolution,
       ScreenOrientation targetOrientation
     )
     {
-      // Processing this frame can continue without having a new
-      // awareness buffer available. In that case, we just update
-      // the display and interpolation transformations.
-      var didUpdateAwarenessBuffer = buffer != null;
-      var isFirstUpdate = AwarenessBuffer == null && didUpdateAwarenessBuffer;
+      if (frame == null || frame.Camera == null) return;
 
-      // In case we have a new buffer available, we retain a CPU-side copy
-      // This is necessary because the original buffer is owned by the
-      // ARFrame and thus will get deallocated with it.
-      if (didUpdateAwarenessBuffer)
+      // Try to use a captured dropped frame if we have no new keyframe
+      var update = buffer != null ? buffer : AwarenessBackBuffer;
+
+      // Did we obtain a new keyframe?
+      _didUpdateAwarenessBuffer = update != null;
+
+      // Cache the new keyframe, if any
+      if (_didUpdateAwarenessBuffer) 
       {
         // Release the previous buffer, if any
         AwarenessBuffer?.Dispose();
-        
+
         // Cache a copy of the new buffer
-        AwarenessBuffer = buffer.GetCopy() as TBuffer;
+        AwarenessBuffer = update.GetCopy() as TBuffer;
+        
+        // Clean the cache
+        AwarenessBackBuffer?.Dispose();
+        AwarenessBackBuffer = null;
       }
+
+      // Processing this frame can continue without having a new
+      // awareness buffer available. In that case, we just update
+      // the display and interpolation transformations.
+      var isFirstUpdate = !_didReceiveFirstUpdate && _didUpdateAwarenessBuffer;
 
       // We either have not received the first buffer or failed to make a copy
       if (AwarenessBuffer == null)
@@ -152,33 +167,39 @@ namespace Niantic.ARDK.AR.Awareness
       if (isFirstUpdate)
       {
         _didReceiveFirstUpdate = true;
-        
-        // Calculate an affine matrix that transforms the intrinsics from the 
-        // AR image's aspect ratio and orientation to the buffer's coordinate space.
-        _intrinsicsFit = AwarenessBuffer.CalculateDisplayTransform
+
+        // Calculate an affine matrix that transforms from the AR image's
+        // aspect ratio and orientation to the buffer's coordinate space.
+        var arImageResolution = frame.Camera.ImageResolution;
+        _arImageToBufferTransform = AwarenessBuffer.CalculateDisplayTransform
         (
-          arCamera.ImageResolution.width,
-          arCamera.ImageResolution.height
+          arImageResolution.width,
+          arImageResolution.height
         );
-        
+
         // Propagate the event for when the context awareness feature initialized
         _awarenessStreamBegan?.Invoke(new ContextAwarenessArgs<TBuffer>(this));
       }
 
       // Check whether the viewport has been rotated and update the display transform
-      var isDisplayTransformDirty = isFirstUpdate || (_lastOrientation != targetOrientation);
+      var isDisplayTransformDirty = isFirstUpdate ||
+        _lastOrientation != targetOrientation ||
+        _lastTargetWidth != targetResolution.width ||
+        _lastTargetHeight != targetResolution.height;
+
       if (isDisplayTransformDirty)
       {
         _lastOrientation = targetOrientation;
+        _lastTargetWidth = targetResolution.width;
+        _lastTargetHeight = targetResolution.height;
 
-        // Calculate an affine matrix that transforms normalized coordinates from the 
+        // Calculate an affine matrix that transforms normalized coordinates from the
         // viewport's aspect ratio and orientation to the buffer's coordinate space.
-        _displayTransform = AwarenessBuffer.CalculateDisplayTransform
+        _displayTransform = _arImageToBufferTransform * frame.CalculateDisplayTransform
         (
-          targetResolution.width,
-          targetResolution.height,
           _lastOrientation,
-          invertVertically: true
+          _lastTargetWidth,
+          _lastTargetHeight
         );
       }
 
@@ -186,17 +207,17 @@ namespace Niantic.ARDK.AR.Awareness
       // interpolation is on, we calculate a matrix to correct for the
       // displacement that occured between the beginning of inference
       // and the current pose of the AR driven camera.
-      // We only need to update the interpolation transform either if 
+      // We only need to update the interpolation transform either if
       // there is a new buffer or if it's set to be updated every frame
       var isInterpolationTransformDirty =
-        (InterpolationMode == InterpolationMode.Balanced && didUpdateAwarenessBuffer) ||
+        (InterpolationMode == InterpolationMode.Balanced && _didUpdateAwarenessBuffer) ||
         InterpolationMode == InterpolationMode.Smooth;
 
       if (isInterpolationTransformDirty)
       {
         _interpolationTransform = AwarenessBuffer.CalculateInterpolationTransform
         (
-          arCamera,
+          frame.Camera,
           targetOrientation,
           _interpolationPreference
         );
@@ -214,41 +235,41 @@ namespace Niantic.ARDK.AR.Awareness
           : _displayTransform;
       }
 
-      if (didUpdateAwarenessBuffer)
+      if (_didUpdateAwarenessBuffer)
       {
         // The back projection transform converts normalized
         // viewport coordinates to 3D points in camera space.
-        // To calculate it, we normalize the camera intrinsics.
-        var intrinsics = NormalizeIntrinsics(arCamera.Intrinsics, arCamera.ImageResolution);
+        // To calculate it, first we normalize the intrinsics.
+        // Note: we don't need to flip cy here, because the
+        // display transform already contains a vertical inversion.
+        var intrinsics = GetNormalizedIntrinsics(AwarenessBuffer);
 
-        // Then, we adjust the normalized intrinsics to the buffer's aspect.
         // The inverse of this matrix can be used to back project 2D points in 3D.
         // Additionally, we multiply with the depth buffer's display transform to
-        // allow the matrix to be used with normalized viewport coordinates
-        BackProjectionTransform =
-          Matrix4x4.Inverse(_intrinsicsFit * intrinsics) * _displayTransform;
+        // allow the matrix to be used with normalized viewport coordinates.
+        BackProjectionTransform = Matrix4x4.Inverse(intrinsics) * _displayTransform;
       }
-      
-      // This state variable represents whether the current representation of the 
-      // context awareness buffer is altered, i.e. the contents of the buffer 
+
+      // This state variable represents whether the current representation of the
+      // context awareness buffer is altered, i.e. the contents of the buffer
       // changes or it needs to be mapped to the screen differently.
-      var isRepresentationDirty = didUpdateAwarenessBuffer || isSamplerTransformDirty;
-      
+      var isRepresentationDirty = _didUpdateAwarenessBuffer || isSamplerTransformDirty;
+
       #if CONTEXT_AWARENESS_USE_INFERENCE_TIME_CAMERA
       // When CONTEXT_AWARENESS_USE_INFERENCE_TIME_CAMERA is defined,
       // the CameraToWorldTransform is only updated when there was a
-      // change in the buffer's representation. As a result, when 
+      // change in the buffer's representation. As a result, when
       // back-projecting values (e.g. depth) from a screen point,
       // the result will be calculated from where the screen point
       // was the last time when the buffer was updated instead of
       // where the screen point is currently.
-      if (isRepresentationDirty) 
+      if (isRepresentationDirty)
       #endif
-      
+
       // The camera to world matrix is the inverted view matrix,
       // matching the orientation of the buffer. It is used
       // to transform points from camera space to world space.
-      CameraToWorldTransform = AwarenessBuffer.CalculateCameraToWorldTransform(arCamera);
+      CameraToWorldTransform = AwarenessBuffer.CalculateCameraToWorldTransform(frame.Camera);
 
       if (isRepresentationDirty)
       {
@@ -257,12 +278,12 @@ namespace Niantic.ARDK.AR.Awareness
           new ContextAwarenessStreamUpdatedArgs<TBuffer>
           (
             sender: this,
-            isKeyFrame: didUpdateAwarenessBuffer
+            isKeyFrame: _didUpdateAwarenessBuffer
           )
         );
       }
     }
-    
+
     private Color[] _pixelBufferColor;
     private float[] _pixelBufferFloat;
 
@@ -349,24 +370,27 @@ namespace Niantic.ARDK.AR.Awareness
       texture.Apply(updateMipmaps: false);
     }
 
-    protected virtual void Dispose(bool disposing)
+    protected virtual void Dispose(bool disposing) 
     {
-      if(disposing)
+      if (disposing) 
+      {
         AwarenessBuffer?.Dispose();
+        AwarenessBackBuffer?.Dispose();
+      }
     }
-    
+
     ~AwarenessBufferProcessor()
     {
       Dispose(false);
     }
 
-    /// Normalizes the intrinsics matrix using the specified resolution.
-    /// @param intrinsics The original intrinsics for the AR image.
-    /// @param resolution The resolution of the image related to the provided intrinsics.
-    private static Matrix4x4 NormalizeIntrinsics(CameraIntrinsics intrinsics, Resolution resolution)
+    /// Returns the normalized the intrinsics matrix of the awareness buffer.
+    /// @param buffer The context awareness buffer.
+    private static Matrix4x4 GetNormalizedIntrinsics(IAwarenessBuffer buffer)
     {
-      var widthMinusOne = resolution.width - 1;
-      var heightMinusOne = resolution.height - 1;
+      var widthMinusOne = buffer.Width - 1;
+      var heightMinusOne = buffer.Height - 1;
+      var intrinsics = buffer.Intrinsics;
       var result = Matrix4x4.identity;
 
       // Calculate normalized intrinsics
@@ -377,17 +401,28 @@ namespace Niantic.ARDK.AR.Awareness
 
       return result;
     }
-    
+
     private static Vector2Int CalculateContainerResolution(IAwarenessBuffer forBuffer, ScreenOrientation usingOrientation)
     {
       // Inspect the buffer
       var bufferWidth = (int)forBuffer.Width;
       var bufferHeight = (int)forBuffer.Height;
 
-      var bufferOrientation = bufferWidth > bufferHeight
-        ? ScreenOrientation.Landscape
-        : ScreenOrientation.Portrait;
-      var rotateContainer = bufferOrientation != usingOrientation;
+      var bufferOrientation =
+        bufferWidth > bufferHeight
+          ? ScreenOrientation.LandscapeLeft
+          : ScreenOrientation.Portrait;
+
+      var usingLandscape =
+        usingOrientation == ScreenOrientation.LandscapeLeft ||
+        usingOrientation == ScreenOrientation.LandscapeRight;
+
+      var targetOrientation =
+        usingLandscape
+          ? ScreenOrientation.LandscapeLeft
+          : ScreenOrientation.Portrait;
+
+      var rotateContainer = bufferOrientation != targetOrientation;
       var width = rotateContainer ? bufferHeight : bufferWidth;
       var height = rotateContainer ? bufferWidth : bufferHeight;
 
@@ -409,9 +444,15 @@ namespace Niantic.ARDK.AR.Awareness
         ARLog._Error("This texture has already been allocated with a different format.");
         return false;
       }
-      
+
       if (texture.width != width || texture.height != height)
+      {
+#if UNITY_2021_2_OR_NEWER
+        texture.Reinitialize(width, height);
+#else
         texture.Resize(width, height);
+#endif
+      }
 
       return true;
     }

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -25,6 +25,7 @@ namespace Niantic.ARDK.VirtualStudio.Remote.Data
     public int ImageCompressionQuality = 30;
     public int TargetImageFramerate = 12;
     public int TargetBufferFramerate = 10;
+    public int TargetFeaturePointFramerate = 12;
   }
 
   [Serializable]
@@ -118,15 +119,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote.Data
 
     public byte[] Key = null;
     public byte[] Value = null;
-  }
-
-  [Serializable]
-  internal sealed class NetworkingSendDataToArmMessage
-  {
-    public static readonly Guid ID = new Guid("52c251b0-afb9-4e4d-ac31-b75cabec02f3");
-
-    public uint Tag = 0U;
-    public byte[] Data = null;
   }
 
   #endregion

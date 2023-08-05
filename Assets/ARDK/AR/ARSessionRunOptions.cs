@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -9,7 +9,7 @@ namespace Niantic.ARDK.AR
   public enum ARSessionRunOptions
   {
     /// No additional behaviour will occur when the configuration is changed.
-    /// @note Used to set the flag programmatically, select "Nothing" in the Unity Editor
+    /// @note This is an iOS-only value. On Android, existing anchors will still be removed.
     None = 0,
 
     /// The session does not continue tracking from the previous configuration.

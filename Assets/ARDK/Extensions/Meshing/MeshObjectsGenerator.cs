@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -23,6 +23,18 @@ namespace Niantic.ARDK.Extensions.Meshing
     private bool _usingInvisibleMaterial;
 
     private int _colliderUpdateThrottle;
+
+    public int ColliderUpdateThrottle
+    {
+      get
+      {
+        return _colliderUpdateThrottle;
+      }
+      set
+      {
+        _colliderUpdateThrottle = value;
+      }
+    }
 
     private Dictionary<Vector3Int, GameObject> _blockObjects = new Dictionary<Vector3Int, GameObject>();
 
@@ -102,6 +114,31 @@ namespace Niantic.ARDK.Extensions.Meshing
       {
         GameObject.Destroy(blockObject.gameObject);
         _blockObjects.Remove(blockCoords);
+      }
+    }
+
+    public void SetRendererEnabled(bool isEnabled)
+    {
+      if (_prefab == null)
+      {
+        ARLog._Error("Failed to change the mesh renderer enabled status because no mesh prefab was set.");
+        return;
+      }
+
+      MeshRenderer meshRenderer = _prefab.GetComponent<MeshRenderer>();
+      if (meshRenderer == null)
+      {
+        ARLog._Error("Failed to change the mesh renderer enabled status  because the mesh prefab lacks a MeshRenderer.");
+        return;
+      }
+
+      meshRenderer.enabled = isEnabled;
+
+      foreach (var blockObject in _blockObjects.Values)
+      {
+        var blockRenderer = blockObject.GetComponent<MeshRenderer>();
+        if (blockRenderer)
+          blockRenderer.enabled = isEnabled;
       }
     }
 

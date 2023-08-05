@@ -1,8 +1,9 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
@@ -90,6 +91,7 @@ namespace Niantic.ARDK.Utilities.BinarySerialization
       RegisterItemSerializer(NetworkIdSerializer.Instance, "NId");
       RegisterItemSerializer(NativeArraySerializer<float>.Instance, "naf");
       RegisterItemSerializer(NativeArraySerializer<Int16>.Instance, "nai16");
+      RegisterItemSerializer(MeshSerializer.Instance, "mesh");
 
       RegisterItemSerializer(_SerializableImagePlaneSerializer._instance);
       RegisterItemSerializer(_SerializableImageBufferSerializer._instance);
@@ -137,7 +139,7 @@ namespace Niantic.ARDK.Utilities.BinarySerialization
       // those. All the other non-arrays for enums and [Serializable] are registered
       // automatically.
       RegisterItemSerializer(SimpleSerializableSerializer<_SerializableARMap>.Instance);
-      RegisterItemSerializer(SimpleSerializableSerializer<_SerializableARBaseAnchor>.Instance);
+      RegisterItemSerializer(SimpleSerializableSerializer<_SerializableARBasicAnchor>.Instance);
       RegisterItemSerializer(SimpleSerializableSerializer<_SerializableARImageAnchor>.Instance);
       RegisterItemSerializer(SimpleSerializableSerializer<_SerializableARPlaneAnchor>.Instance);
 
@@ -146,6 +148,14 @@ namespace Niantic.ARDK.Utilities.BinarySerialization
       RegisterItemSerializer
       (
         SimpleSerializableSerializer<ReadOnlyCollection<IARAnchor>>.Instance,
+        null,
+        false,
+        false
+      );
+      
+      RegisterItemSerializer
+      (
+        SimpleSerializableSerializer<List<IARAnchor>>.Instance,
         null,
         false,
         false

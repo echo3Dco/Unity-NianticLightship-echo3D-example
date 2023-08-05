@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -184,6 +184,14 @@ namespace Niantic.ARDK.Utilities
         throw new ArgumentNullException(nameof(key));
 
       return _innerDictionary.TryRemove(key, out _);
+    }
+
+    public bool ContainsKey(TKey key)
+    {
+      if (key == null)
+        throw new ArgumentNullException(nameof(key));
+
+      return _innerDictionary.ContainsKey(key);
     }
   }
 }

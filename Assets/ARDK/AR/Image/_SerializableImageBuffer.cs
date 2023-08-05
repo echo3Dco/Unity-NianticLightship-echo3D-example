@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -25,17 +25,16 @@ namespace Niantic.ARDK.AR.Image
 
     public void Dispose()
     {
-      var planes = Planes;
-      if (planes != null)
+      if (Planes != null)
       {
+        Planes.Dispose();
         Planes = null;
-        planes._Dispose();
       }
     }
 
     public ImageFormat Format { get; private set; }
     public _SerializableImagePlanes Planes { get; private set; }
-    
+
     public int CompressionLevel { get; private set; }
 
     IImagePlanes IImageBuffer.Planes

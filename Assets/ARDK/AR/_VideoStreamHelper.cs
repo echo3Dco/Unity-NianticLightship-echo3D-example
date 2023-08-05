@@ -1,10 +1,11 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.Image;
 using Niantic.ARDK.Internals;
+using Niantic.ARDK.Utilities;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -24,19 +25,6 @@ namespace Niantic.ARDK.AR
         height = DEFAULT_ENCODING_IMAGE_HEIGHT
       };
 
-    internal static bool _SupportsCompressing()
-    {
-      #pragma warning disable 0429
-      return (NativeAccess.Mode == NativeAccess.ModeType.Native) ||
-        (Application.platform == RuntimePlatform.OSXEditor);
-      #pragma warning restore 0429
-    }
-
-    internal static bool _SupportsDecompressing()
-    {
-      return (Application.platform == RuntimePlatform.OSXEditor);
-    }
-
     internal static CompressedImage _CompressForVideo
     (
       _SerializableImagePlanes planes,
@@ -44,8 +32,8 @@ namespace Niantic.ARDK.AR
       int compressionQuality
     )
     {
-      if (!_SupportsCompressing())
-        throw new Exception("This platform does not support compressing images");
+      if (!_ArdkPlatformUtility.AreNativeBinariesAvailable)
+        throw new NotSupportedException("This platform does not support compressing images");
 
       var plane0 = planes[0];
       void* buffer;
@@ -77,8 +65,8 @@ namespace Niantic.ARDK.AR
     /// <param name="compressedImage">The compressed image to decompress.</param>
     internal static _SerializableImagePlanes _DecompressForVideo(CompressedImage compressedImage)
     {
-      if (!_SupportsDecompressing())
-        throw new Exception("This platform does not support decompressing images");
+      if (!_ArdkPlatformUtility.AreNativeBinariesAvailable)
+        throw new NotSupportedException("This platform does not support decompressing images");
 
       fixed (void* compressedPtr = compressedImage.CompressedData)
       {
@@ -133,8 +121,8 @@ namespace Niantic.ARDK.AR
       int compressionQuality
     )
     {
-      if (!_SupportsCompressing())
-        throw new Exception("This platform does not support compressing images");
+      if (!_ArdkPlatformUtility.AreNativeBinariesAvailable)
+        throw new NotSupportedException("This platform does not support compressing images");
 
       var plane0 = planes[0];
       void* buffer;
@@ -171,8 +159,8 @@ namespace Niantic.ARDK.AR
       int compressionQuality
     )
     {
-      if (!_SupportsCompressing())
-        throw new Exception("This platform does not support compressing images");
+      if (!_ArdkPlatformUtility.AreNativeBinariesAvailable)
+        throw new NotSupportedException("This platform does not support compressing images");
 
       void* buffer;
       UInt64 size;
@@ -200,8 +188,8 @@ namespace Niantic.ARDK.AR
       bool useJpegCompression
     )
     {
-      if (!_SupportsCompressing())
-        throw new Exception("This platform does not support compressing images");
+      if (!_ArdkPlatformUtility.AreNativeBinariesAvailable)
+        throw new NotSupportedException("This platform does not support decompressing images");
 
       float* buffer;
       UInt64 size;

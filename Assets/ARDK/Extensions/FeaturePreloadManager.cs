@@ -1,4 +1,4 @@
-﻿// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -29,8 +29,6 @@ namespace Niantic.ARDK.Extensions
     [SerializeField]
     private List<Feature> _features = null;
 
-    private Action<bool> _finishedDownload;
-    private Queue<Feature> _featuresRemaining;
     private Coroutine _preloadCoroutine;
 
     public ArdkEventHandler<PreloadProgressUpdatedArgs> ProgressUpdated;

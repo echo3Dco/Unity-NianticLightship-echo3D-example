@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections;
@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.Internals;
+using Niantic.ARDK.Utilities;
 
 namespace Niantic.ARDK.AR.Image
 {
@@ -16,12 +17,11 @@ namespace Niantic.ARDK.AR.Image
 
     internal _NativeImagePlanes(IntPtr nativeHandle)
     {
+      _NativeAccess.AssertNativeAccessValid();
+
       _nativeHandle = nativeHandle;
 
-      ulong count = 0;
-
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        count = _NARImage_GetPlaneCount(nativeHandle);
+      ulong count = _NARImage_GetPlaneCount(nativeHandle);
 
       _planes = new _NativeImagePlane[count];
     }
@@ -62,6 +62,18 @@ namespace Niantic.ARDK.AR.Image
       for (int i = 0; i < count; i++)
         yield return this[i];
     }
+    
+    public void Dispose()
+    {
+      if (_planes == null)
+        return;
+
+      // it is important that a null check is done on each index of _planes collection as not all
+      // indexes may be populated at this point due to them only getting populated if the indexes 
+      // are accessed via the [ ] operator overload
+      foreach (_NativeImagePlane plane in _planes)
+        plane?.Dispose();
+    }
 
     private _NativeImagePlane _CreatePlane(int planeIndex)
     {
@@ -82,6 +94,7 @@ namespace Niantic.ARDK.AR.Image
       for (int i = 0; i < count; i++)
         yield return this[i];
     }
+
     IEnumerator IEnumerable.GetEnumerator()
     {
       return GetEnumerator();

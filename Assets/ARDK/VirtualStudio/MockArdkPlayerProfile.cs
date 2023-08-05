@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -79,7 +79,7 @@ namespace Niantic.ARDK.VirtualStudio
 
     public MockPlayer GetPlayer()
     {
-      return _VirtualStudioManager.Instance.GetPlayer(_playerName);
+      return _VirtualStudioSessionsManager.Instance.GetPlayer(_playerName);
     }
 
     public override string ToString()

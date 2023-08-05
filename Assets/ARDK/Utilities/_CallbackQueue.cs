@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,6 @@ namespace Niantic.ARDK.Utilities
   /// A helper class to ensure callbacks from native code get run on Unity's main thread.
   /// @note You *do not* need to interact directly with this class, it will manually inject an
   /// invisible, immortal game object to flush callbacks by itself.
-  // TODO: As the class is internal, it should be named _CallbackQueue.
   internal sealed class _CallbackQueue:
     MonoBehaviour
   {
@@ -26,9 +25,7 @@ namespace Niantic.ARDK.Utilities
     /// <summary>
     /// Internal flag for application shutting down.
     /// </summary>
-    // TODO: This should be renamed to _isApplicationQuitting, as the current name looks more like
-    // a public event.
-    internal static bool ApplicationQuitting;
+    internal static bool _isApplicationQuitting;
 
 #if UNITY_EDITOR
     /// Run so that the EditorRemoteConnector can start up a networking session while the Editor is
@@ -37,7 +34,8 @@ namespace Niantic.ARDK.Utilities
     [InitializeOnLoadMethod]
     private static void _OnEditorLoad()
     {
-      EditorApplication.update += _ConsumeQueue;
+      EditorApplication.update += ConsumeQueue;
+      EditorApplication.quitting += OnEditorQuit;
     }
 #endif
 
@@ -45,7 +43,7 @@ namespace Niantic.ARDK.Utilities
     /// We create a game object that is invisible and won't be destroyed by switching scenes. This
     /// becomes our link into Unity's main run loop where we can flush our callbacks ;)
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void _OnLoad()
+    private static void OnLoad()
     {
       var sneakySnake = new GameObject();
       sneakySnake.hideFlags = HideFlags.HideAndDontSave | HideFlags.HideInInspector;
@@ -54,7 +52,7 @@ namespace Niantic.ARDK.Utilities
       sneakySnake.AddComponent<_CallbackQueue>();
     }
 
-    internal static void _ConsumeQueue()
+    public static void ConsumeQueue()
     {
       Action[] actions;
 
@@ -83,7 +81,7 @@ namespace Niantic.ARDK.Utilities
         var message =
           "An exception occurred in a method subscribed to an ARDK event, check the device logs " +
           "for more information";
-        
+
         throw new Exception(message);
       }
     }
@@ -98,9 +96,16 @@ namespace Niantic.ARDK.Utilities
       lock (_callbackQueue)
         _callbackQueue.Enqueue(callback);
     }
+    
+    internal static event Action AppStarted;
+    internal static event Action AppStopped;
 
     internal static event Action ApplicationWillQuit;
-
+    internal static event Action ApplicationGainedFocus;
+    internal static event Action ApplicationLostFocus;
+    internal static event Action ApplicationPaused;
+    internal static event Action ApplicationUnpaused;
+    
     /// In this Update method, we call all of the relevant callback functions subscribed to the
     /// ARSession. Meaning that if any of those callback functions are very heavy, they will slow
     /// down your app's performance and may have frame drops. Unfortunately, Unity doesn't have
@@ -108,27 +113,69 @@ namespace Niantic.ARDK.Utilities
     /// each function subscribed to an event.
     private void Update()
     {
-      _ConsumeQueue();
+      ConsumeQueue();
+    }
+
+    // On Android, when the on-screen keyboard is enabled, it causes an OnApplicationFocus( false )
+    // event. Additionally, if you press Home at the moment the keyboard is enabled, the
+    // OnApplicationFocus() event is not called, but OnApplicationPause() is called instead.
+    private void OnApplicationFocus(bool hasFocus)
+    {
+      if (hasFocus)
+        ApplicationGainedFocus?.Invoke();
+      else
+        ApplicationLostFocus?.Invoke();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+      if (pauseStatus)
+        ApplicationPaused?.Invoke();
+      else
+        ApplicationUnpaused?.Invoke();
+    }
+
+    private void Awake()
+    {
+      AppStarted?.Invoke();
+    }
+    
+    private void OnDisable()
+    {
+      AppStopped?.Invoke();
     }
 
     private void OnApplicationQuit()
     {
-      if (ApplicationQuitting)
+      if (_isApplicationQuitting)
       {
-        // Prevents the multiple invokations of this method that are happening for some reason
+        // Prevents the multiple invocations of this method that are happening for some reason
         return;
       }
 
-      ApplicationQuitting = true;
+      _isApplicationQuitting = true;
 
       var handler = ApplicationWillQuit;
-      if (handler != null)
-        handler();
+      handler?.Invoke();
+    }
+    
+    private static void OnEditorQuit()
+    {
+      if (_isApplicationQuitting)
+      {
+        // Prevents the multiple invocations of this method that are happening for some reason
+        return;
+      }
+
+      _isApplicationQuitting = true;
+
+      var handler = ApplicationWillQuit;
+      handler?.Invoke();
     }
 
     private void OnDestroy()
     {
-      if (!ApplicationQuitting)
+      if (!_isApplicationQuitting)
         ARLog._Error("Callback Queue Destroyed. This should not happen.");
     }
   }

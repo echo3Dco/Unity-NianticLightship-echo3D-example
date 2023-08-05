@@ -1,9 +1,8 @@
-﻿// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
 using Niantic.ARDK.AR;
-using Niantic.ARDK.AR.ARSessionEventArgs;
 using Niantic.ARDK.AR.Configuration;
 using Niantic.ARDK.Networking;
 using Niantic.ARDK.Networking.MultipeerNetworkingEventArgs;
@@ -31,7 +30,8 @@ namespace Niantic.ARDK.Extensions
   ///   Call Deinitialize() to dispose the ARSession
   ///
   /// @note
-  ///   Because the CapabilityChecker's method for checking device support is async, the above
+  ///   Because the CapabilityChecker's method for checking device support and the
+  ///   PermissionRequester's method to get camera permissions are async, the above
   ///   events (i.e. initialization of an ARSession) may not happen on the exact frame as
   ///   the method (OnAwake or Initialize) is invoked.
   [DisallowMultipleComponent]
@@ -71,25 +71,21 @@ namespace Niantic.ARDK.Extensions
     private bool _prevAutoFocusEnabled;
     private WorldAlignment _prevWorldAlignment;
 
-    private Guid _stageIdentifier = default;
+    private Guid _stageIdentifier;
 
-    private IARSession _arSession;
     private bool _shouldBeRunning;
 
-    public IARSession ARSession
+    public IARSession ARSession { get; private set; }
+
+    public ARSessionRunOptions RunOptions
     {
-      get
-      {
-        return _arSession;
-      }
+      get => _runOptions;
+      set => _runOptions = value;
     }
 
     public bool IsLightEstimationEnabled
     {
-      get
-      {
-        return _isLightEstimationEnabled;
-      }
+      get => _isLightEstimationEnabled;
       set
       {
         if (value != _isLightEstimationEnabled)
@@ -102,10 +98,7 @@ namespace Niantic.ARDK.Extensions
 
     public bool IsAutoFocusEnabled
     {
-      get
-      {
-        return _isAutoFocusEnabled;
-      }
+      get => _isAutoFocusEnabled;
       set
       {
         if (value != _isAutoFocusEnabled)
@@ -118,10 +111,7 @@ namespace Niantic.ARDK.Extensions
 
     public WorldAlignment WorldAlignment
     {
-      get
-      {
-        return _worldAlignment;
-      }
+      get => _worldAlignment;
       set
       {
         if (value != _worldAlignment)
@@ -132,10 +122,7 @@ namespace Niantic.ARDK.Extensions
       }
     }
 
-    protected override bool _CanReinitialize
-    {
-      get { return true; }
-    }
+    protected override bool _CanReinitialize => true;
 
     protected override void InitializeImpl()
     {
@@ -149,6 +136,7 @@ namespace Niantic.ARDK.Extensions
 
       if (_useWithARNetworkingSession)
         MultipeerNetworkingFactory.NetworkingInitialized += ListenForStage;
+      
 
       if (_capabilityChecker.HasSucceeded)
         ScheduleCreateAndRunOnNextUpdate();
@@ -180,11 +168,11 @@ namespace Niantic.ARDK.Extensions
 
       MultipeerNetworkingFactory.NetworkingInitialized -= ListenForStage;
 
-      if (_arSession == null)
+      if (ARSession == null)
         return;
 
-      _arSession.Dispose();
-      _arSession = null;
+      ARSession.Dispose();
+      ARSession = null;
     }
 
     private void ListenForStage(AnyMultipeerNetworkingInitializedArgs args)
@@ -200,7 +188,7 @@ namespace Niantic.ARDK.Extensions
 
       _shouldBeRunning = true;
 
-      if (_arSession != null)
+      if (ARSession != null)
         Run();
     }
 
@@ -211,15 +199,14 @@ namespace Niantic.ARDK.Extensions
       _shouldBeRunning = false;
       _capabilityChecker.Success.RemoveListener(CreateAndRun);
 
-      if (_arSession != null)
-        _arSession.Pause();
+      ARSession?.Pause();
     }
 
     /// Creates the session so that Run can be called later.
     /// This will only create the session if the capability checker was successful.
     private void Create()
     {
-      if (_arSession != null)
+      if (ARSession != null)
       {
         ARLog._Warn("Did not create an ARSession because one already exists.");
         return;
@@ -232,30 +219,30 @@ namespace Niantic.ARDK.Extensions
       }
 
       if (_useWithARNetworkingSession && _stageIdentifier != Guid.Empty)
-        _arSession = ARSessionFactory.Create(RuntimeEnvironment, _stageIdentifier);
+        ARSession = ARSessionFactory.Create(RuntimeEnvironment, _stageIdentifier);
       else
-        _arSession = ARSessionFactory.Create(RuntimeEnvironment);
+        ARSession = ARSessionFactory.Create(RuntimeEnvironment);
 
-      ARLog._DebugFormat("Created {0} ARSession: {1}.", false, _arSession.RuntimeEnvironment, _arSession.StageIdentifier);
+      ARLog._DebugFormat("Created {0} ARSession: {1}.", false, ARSession.RuntimeEnvironment, ARSession.StageIdentifier);
 
       // Just in case the dev disposes the ARSession themselves instead of through this manager
-      _arSession.Deinitialized += (_) => _arSession = null;
+      ARSession.Deinitialized += (_) => ARSession = null;
     }
 
     /// Runs an already created session with the provided options.
     private void Run()
     {
-      if (_arSession == null)
+      if (ARSession == null)
       {
         ARLog._Error("Failed to run ARSession because one was not initialized.");
         return;
       }
 
-      // Config changes are made later in the _ApplyARConfigurationChange method. That way,
+      // Config changes are made later in the ApplyARConfigurationChange method. That way,
       // this class is able to intercept and alter the ARConfiguration every ARSession is run with,
       // even if the session is run outside of this method.
       var worldConfig = ARWorldTrackingConfigurationFactory.Create();
-      _arSession.Run(worldConfig, _runOptions);
+      ARSession.Run(worldConfig, _runOptions);
     }
 
     /// Initializes and runs the session.
@@ -267,9 +254,9 @@ namespace Niantic.ARDK.Extensions
         Run();
     }
 
-    internal override void _ApplyARConfigurationChange
+    public override void ApplyARConfigurationChange
     (
-      _ARSessionChangesCollector._ARSessionRunProperties properties
+      ARSessionChangesCollector.ARSessionRunProperties properties
     )
     {
       var config = properties.ARConfiguration;

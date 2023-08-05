@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -21,11 +21,11 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking
     private readonly Dictionary<Guid, _MockARNetworking> _stageIdentifierToSession =
       new Dictionary<Guid, _MockARNetworking>();
 
-    private _IVirtualStudioManager _virtualStudioManager;
+    private _IVirtualStudioSessionsManager _virtualStudioSessionsManager;
 
-    public _MockARNetworkingSessionsMediator(_IVirtualStudioManager virtualStudioMaster)
+    public _MockARNetworkingSessionsMediator(_IVirtualStudioSessionsManager virtualStudioSessionsManager)
     {
-      _virtualStudioManager = virtualStudioMaster;
+      _virtualStudioSessionsManager = virtualStudioSessionsManager;
 
       ARNetworkingFactory.ARNetworkingInitialized += HandleAnyInitialized;
       ARNetworkingFactory.NonLocalARNetworkingInitialized += HandleAnyInitialized;
@@ -33,7 +33,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking
 
     ~_MockARNetworkingSessionsMediator()
     {
-      ARLog._Error("_MockARNetworkingSessionsMediator was not correctly disposed.");
+      ARLog._Debug("_MockARNetworkingSessionsMediator was not correctly disposed.");
     }
 
     public void Dispose()
@@ -49,15 +49,15 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking
 
     public _MockARNetworking CreateNonLocalSession(Guid stageIdentifier)
     {
-      var networking = _virtualStudioManager.MultipeerMediator.GetSession(stageIdentifier);
-      var arSession = _virtualStudioManager.ArSessionMediator.GetSession(stageIdentifier);
+      var networking = _virtualStudioSessionsManager.MultipeerMediator.GetSession(stageIdentifier);
+      var arSession = _virtualStudioSessionsManager.ArSessionMediator.GetSession(stageIdentifier);
 
       var arNetworking =
         ARNetworkingFactory._CreateVirtualStudioManagedARNetworking
         (
           arSession,
           networking,
-          _virtualStudioManager,
+          _virtualStudioSessionsManager,
           isLocal: false
         );
 
@@ -77,7 +77,7 @@ namespace Niantic.ARDK.VirtualStudio.AR.Networking
       if (GetSession(stageIdentifier).Networking.IsConnected)
       {
         var connectedNetworkings =
-          _virtualStudioManager.MultipeerMediator.GetConnectedSessions(stageIdentifier);
+          _virtualStudioSessionsManager.MultipeerMediator.GetConnectedSessions(stageIdentifier);
 
         if (connectedNetworkings != null)
           foreach (var connectedNetworking in connectedNetworkings)

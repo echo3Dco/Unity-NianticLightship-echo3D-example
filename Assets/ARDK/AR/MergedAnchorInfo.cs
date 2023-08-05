@@ -1,10 +1,11 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.Anchors;
+using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Collections;
 
 namespace Niantic.ARDK.AR
@@ -42,7 +43,7 @@ namespace Niantic.ARDK.AR
       public MergedAnchorInfo ConsumeToMakeMergedAnchorInfo()
       {
         #pragma warning disable 0162
-        if (NativeAccess.Mode != NativeAccess.ModeType.Native)
+        if (_NativeAccess.Mode != _NativeAccess.ModeType.Native)
           _ARAnchorFactory._testOnly_DefaultAnchorType = AnchorType.Plane;
         #pragma warning restore 0162
 
@@ -77,7 +78,7 @@ namespace Niantic.ARDK.AR
       IDisposable
     {
       private Dictionary<IARPlaneAnchor, IARPlaneAnchor[]> _mergedAnchors;
-      
+
       internal _ReadOnlyDictionary<IARPlaneAnchor, IARPlaneAnchor[]> MergedAnchors { get; private set; }
 
       internal MergedAnchorInfo(Dictionary<IARPlaneAnchor, IARPlaneAnchor[]> mergedAnchors)

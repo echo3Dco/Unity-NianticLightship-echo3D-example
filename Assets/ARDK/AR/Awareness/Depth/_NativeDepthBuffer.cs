@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using Niantic.ARDK.Internals;
 
@@ -6,6 +6,7 @@ using System;
 using System.Runtime.InteropServices;
 
 using Niantic.ARDK.AR.Camera;
+using Niantic.ARDK.Utilities;
 
 using UnityEngine;
 
@@ -17,7 +18,7 @@ namespace Niantic.ARDK.AR.Awareness.Depth
   {
     static _NativeDepthBuffer()
     {
-      Platform.Init();
+      _Platform.Init();
     }
 
     internal _NativeDepthBuffer(IntPtr nativeHandle, float worldScale, CameraIntrinsics intrinsics)
@@ -37,11 +38,7 @@ namespace Niantic.ARDK.AR.Awareness.Depth
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          return _DepthBuffer_GetNearDistance(_nativeHandle);
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
+        return _DepthBuffer_GetNearDistance(_nativeHandle);
       }
     }
 
@@ -49,46 +46,36 @@ namespace Niantic.ARDK.AR.Awareness.Depth
     {
       get
       {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          return _DepthBuffer_GetFarDistance(_nativeHandle);
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
+        return _DepthBuffer_GetFarDistance(_nativeHandle);
       }
     }
-    
+
+    private Vector4? _params;
+
+    public Vector4 ZBufferParams
+    {
+      get
+      {
+        _params ??= AwarenessUtils.CalculateZBufferParams
+        (
+          NearDistance,
+          FarDistance
+        );
+
+        return _params.Value;
+      }
+    }
+
     public override IAwarenessBuffer GetCopy()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle = _DepthBuffer_GetCopy(_nativeHandle);
-
-        return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-#pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-#pragma warning restore 0162
-      }
+      var newHandle = _DepthBuffer_GetCopy(_nativeHandle);
+      return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
     }
 
     public IDepthBuffer RotateToScreenOrientation()
     {
-
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-
-        var newHandle = _DepthBuffer_RotateToScreenOrientation(_nativeHandle);
-
-        return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
-      }
+      var newHandle = _DepthBuffer_RotateToScreenOrientation(_nativeHandle);
+      return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
     }
 
     public IDepthBuffer Interpolate
@@ -113,9 +100,8 @@ namespace Niantic.ARDK.AR.Awareness.Depth
       var nativeProjectionMatrix = _UnityMatrixToNarArray(projectionMatrix);
       var nativeFrameViewMatrix = _UnityMatrixToNarArray(frameViewMatrix);
 
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-        var newHandle = _DepthBuffer_Interpolate
+      var newHandle =
+        _DepthBuffer_Interpolate
         (
           _nativeHandle,
           nativeProjectionMatrix,
@@ -123,14 +109,7 @@ namespace Niantic.ARDK.AR.Awareness.Depth
           backProjectionDistance
         );
 
-       return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
-      }
+      return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
     }
 
     public IDepthBuffer FitToViewport
@@ -139,51 +118,15 @@ namespace Niantic.ARDK.AR.Awareness.Depth
       int viewportHeight
     )
     {
-
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-      {
-
-        var newHandle = _DepthBuffer_FitToViewport
+      var newHandle =
+        _DepthBuffer_FitToViewport
         (
           _nativeHandle,
           viewportWidth,
           viewportHeight
         );
 
-        return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
-      }
-      else
-      {
-        #pragma warning disable 0162
-        throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
-      }
-    }
-    
-    public float Sample(Vector2 uv)
-    {
-      var w = (int)Width;
-      var h = (int)Height;
-      
-      var x = Mathf.Clamp(Mathf.RoundToInt(uv.x * w - 0.5f), 0, w - 1);
-      var y = Mathf.Clamp(Mathf.RoundToInt(uv.y * h - 0.5f), 0, h - 1);
-      
-      return Data[x + w * y];
-    }
-    
-    public float Sample(Vector2 uv, Matrix4x4 transform)
-    {
-      var w = (int)Width;
-      var h = (int)Height;
-      
-      var st = transform * new Vector4(uv.x, uv.y, 1.0f, 1.0f);
-      var sx = st.x / st.z;
-      var sy = st.y / st.z;
-      
-      var x = Mathf.Clamp(Mathf.RoundToInt(sx * w - 0.5f), 0, w - 1);
-      var y = Mathf.Clamp(Mathf.RoundToInt(sy * h - 0.5f), 0, h - 1);
-      
-      return Data[x + w * y];
+      return new _NativeDepthBuffer(newHandle, _worldScale, Intrinsics);
     }
 
     public bool CreateOrUpdateTextureARGB32
@@ -203,7 +146,7 @@ namespace Niantic.ARDK.AR.Awareness.Depth
         valueConverter
       );
     }
-    
+
     public bool CreateOrUpdateTextureRFloat
     (
       ref Texture2D texture,
@@ -222,69 +165,38 @@ namespace Niantic.ARDK.AR.Awareness.Depth
 
     protected override void _GetViewMatrix(float[] outViewMatrix)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _DepthBuffer_GetView(_nativeHandle, outViewMatrix);
-      #pragma warning disable 0162
-      else
-        throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      _DepthBuffer_GetView(_nativeHandle, outViewMatrix);
     }
 
     protected override void _GetIntrinsics(float[] outVector)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        _DepthBuffer_GetIntrinsics(_nativeHandle, outVector);
-      #pragma warning disable 0162
-      else
-        throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      _DepthBuffer_GetIntrinsics(_nativeHandle, outVector);
     }
 
     protected override void _OnRelease()
     {
-        if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-          _DepthBuffer_Release(_nativeHandle);
-        #pragma warning disable 0162
-        else
-          throw new IncorrectlyUsedNativeClassException();
-        #pragma warning restore 0162
+      _DepthBuffer_Release(_nativeHandle);
     }
 
     protected override IntPtr _GetDataAddress()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _DepthBuffer_GetDataAddress(_nativeHandle);
-      #pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      return _DepthBuffer_GetDataAddress(_nativeHandle);
     }
 
     private static uint GetNativeWidth(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _DepthBuffer_GetWidth(nativeHandle);
-      #pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      return _DepthBuffer_GetWidth(nativeHandle);
     }
 
     private static uint GetNativeHeight(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _DepthBuffer_GetHeight(nativeHandle);
-      #pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      return _DepthBuffer_GetHeight(nativeHandle);
     }
 
 
     private static bool IsNativeKeyframe(IntPtr nativeHandle)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
-        return _DepthBuffer_IsKeyframe(nativeHandle);
-      #pragma warning disable 0162
-      throw new IncorrectlyUsedNativeClassException();
-      #pragma warning restore 0162
+      return _DepthBuffer_IsKeyframe(nativeHandle);
     }
 
     [DllImport(_ARDKLibrary.libraryName)]
@@ -313,7 +225,7 @@ namespace Niantic.ARDK.AR.Awareness.Depth
 
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern float _DepthBuffer_GetFarDistance(IntPtr nativeHandle);
-    
+
     [DllImport(_ARDKLibrary.libraryName)]
     private static extern IntPtr _DepthBuffer_GetCopy(IntPtr nativeHandle);
 

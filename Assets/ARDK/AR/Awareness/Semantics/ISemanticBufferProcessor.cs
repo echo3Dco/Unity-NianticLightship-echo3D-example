@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using Niantic.ARDK.AR.Awareness;
 using Niantic.ARDK.AR.Awareness.Semantics;
 

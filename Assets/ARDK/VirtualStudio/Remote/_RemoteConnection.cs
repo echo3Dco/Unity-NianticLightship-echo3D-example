@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -149,7 +149,7 @@ namespace Niantic.ARDK.VirtualStudio.Remote
 
       Application.runInBackground = true;
 
-      Platform.Init();
+      _Platform.Init();
 
       if (_remoteConnectionImpl != null)
         _remoteConnectionImpl.Dispose();
@@ -167,8 +167,7 @@ namespace Niantic.ARDK.VirtualStudio.Remote
           break;
 
         case ConnectionMethod.Internet:
-          _remoteConnectionImpl = new _InternetRemoteConnectionCompat();
-          break;
+          throw new InvalidOperationException();
 
         default:
           throw new ArgumentOutOfRangeException();
@@ -264,7 +263,9 @@ namespace Niantic.ARDK.VirtualStudio.Remote
     /// <param name="id">The id to send with the data.</param>
     /// <param name="data">The data to send.</param>
     /// <param name="transportType">The protocol to send the data with.</param>
+#pragma warning disable 612, 618 
     public static void Send(Guid id, byte[] data, TransportType transportType = TransportType.ReliableUnordered)
+#pragma warning restore 612, 618 
     {
       bool readyAndConnected =
         _remoteConnectionImpl != null &&
@@ -301,7 +302,9 @@ namespace Niantic.ARDK.VirtualStudio.Remote
     /// <param name="id">The id of the message.</param>
     /// <param name="value">The value to send.</param>
     /// <param name="transportType">The protocol to send the data with.</param>
+#pragma warning disable 612, 618 
     public static void Send<TValue>(Guid id, TValue value, TransportType transportType = TransportType.ReliableUnordered)
+#pragma warning restore 612, 618 
     {
       Send(id, value.SerializeToArray(), transportType);
     }

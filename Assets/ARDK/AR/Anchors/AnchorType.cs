@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 namespace Niantic.ARDK.AR.Anchors
 {
@@ -7,7 +7,7 @@ namespace Niantic.ARDK.AR.Anchors
   public enum AnchorType
   {
     /// An anchor.
-    Base = 0,
+    Basic = 0,
 
     /// A plane anchor.
     Plane = 1,
@@ -15,15 +15,9 @@ namespace Niantic.ARDK.AR.Anchors
     /// An image anchor.
     /// @note This is an iOS-only value.
     Image = 2,
-      
+
     /// A face anchor.
     /// @note Face anchors are only available in the face tracking feature branch
     //Face = 3,
-    
-    /// A peer anchor, representing another user in a multiplayer session.
-    Peer = 4,
-    
-    /// An anchor that is shared between clients in a multiplayer session.
-    Shared = 5,
   }
 }

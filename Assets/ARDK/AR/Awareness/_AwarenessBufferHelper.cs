@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -177,7 +177,7 @@ namespace Niantic.ARDK.AR.Awareness
         ARLog._Error("The texture has already been allocated with a different pixel format.");
         return false;
       }
-      
+
       if (texture == null)
       {
         texture = new Texture2D(width, height, TextureFormat.ARGB32, false, false)
@@ -185,9 +185,13 @@ namespace Niantic.ARDK.AR.Awareness
           filterMode = filterMode, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0
         };
       }
-      
+
       if (texture.width != width || texture.height != height)
+#if UNITY_2021_2_OR_NEWER
+        texture.Reinitialize(width, height);
+#else
         texture.Resize(width, height);
+#endif
 
       if (texture.filterMode != filterMode)
         texture.filterMode = filterMode;
@@ -236,16 +240,22 @@ namespace Niantic.ARDK.AR.Awareness
           filterMode = filterMode, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0
         };
       }
-      
+
       if (texture.width != width || texture.height != height)
+      {
+#if UNITY_2021_2_OR_NEWER
+        texture.Reinitialize(width, height);
+#else
         texture.Resize(width, height);
-      
+#endif
+      }
+
       if (texture.filterMode != filterMode)
         texture.filterMode = filterMode;
 
       // Copy to texture
       texture.SetPixelData(src, 0);
-      
+
       // Push top GPU
       texture.Apply(false);
 
@@ -289,7 +299,13 @@ namespace Niantic.ARDK.AR.Awareness
       }
 
       if (texture.width != width || texture.height != height)
+      {
+#if UNITY_2021_2_OR_NEWER
+        texture.Reinitialize(width, height);
+#else
         texture.Resize(width, height);
+#endif
+      }
 
       if (texture.filterMode != filterMode)
         texture.filterMode = filterMode;
@@ -341,7 +357,13 @@ namespace Niantic.ARDK.AR.Awareness
       }
 
       if (texture.width != width || texture.height != height)
+      {
+#if UNITY_2021_2_OR_NEWER
+        texture.Reinitialize(width, height);
+#else
         texture.Resize(width, height);
+#endif
+      }
 
       if (texture.filterMode != filterMode)
         texture.filterMode = filterMode;
@@ -388,7 +410,7 @@ namespace Niantic.ARDK.AR.Awareness
       ref Color[] destination,
       NativeArray<UInt32> source,
       Func<UInt32, float> valueConverter = null
-    ) 
+    )
     {
       var length = source.Length;
       if (destination == null || destination.Length != length)
@@ -397,15 +419,15 @@ namespace Niantic.ARDK.AR.Awareness
       var isConversionDefined = valueConverter != null;
       for (var idx = 0; idx < length; idx++)
       {
-        var val = isConversionDefined 
-          ? valueConverter(source[idx]) 
+        var val = isConversionDefined
+          ? valueConverter(source[idx])
           : Convert.ToInt32(source[idx]);
         destination[idx] = new Color(val, val, val, 1);
       }
     }
 
     #region Math Extensions
-    
+
     /// Produces a matrix that transforms a 3D point from the awareness buffer's
     /// local coordinate space to the world.
     /// @note The matrix returned by this call is essentially the same matrix as
@@ -423,7 +445,7 @@ namespace Niantic.ARDK.AR.Awareness
 
       // Acquire the view matrix in the orientation of the buffer
       var view = MathUtils.CalculateNarViewMatrix(camera, bufferOrientation);
-      
+
       // The buffer's native coordinate system is upside down compared to
       // Unity's 2D coordinate space.
       InvertVerticalAxis(ref view);
@@ -474,7 +496,7 @@ namespace Niantic.ARDK.AR.Awareness
       var orientation = width > height
         ? ScreenOrientation.LandscapeLeft
         : ScreenOrientation.Portrait;
-      
+
       return MathUtils.CalculateDisplayTransform
       (
         imageWidth: (int)forBuffer.Width,
@@ -485,7 +507,7 @@ namespace Niantic.ARDK.AR.Awareness
         invertVertically: invertVertically
       );
     }
-    
+
     /// Calculates an affine transformation matrix to fit the specified buffer to the specified resolution
     /// @note The buffer's container can be landscape or portrait, but the content of the
     ///       buffer needs to be sensor oriented.
@@ -562,7 +584,7 @@ namespace Niantic.ARDK.AR.Awareness
 
       // Acquire the target pose to warp the image to
       var targetPose = MathUtils.CalculateUnityViewMatrix(camera, bufferOrientation);
-      
+
       // We need to flip the vertical axis, because we invert it in the display
       // transform matrix, since Unity's 2D coordinate system starts from the
       // bottom rather than from the top.

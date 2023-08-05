@@ -1,8 +1,8 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 
 using Niantic.ARDK.AR.Anchors;
 using Niantic.ARDK.AR.Awareness;
@@ -12,9 +12,14 @@ using Niantic.ARDK.AR.Camera;
 using Niantic.ARDK.AR.HitTest;
 using Niantic.ARDK.AR.Image;
 using Niantic.ARDK.AR.LightEstimate;
+using Niantic.ARDK.AR.PointCloud;
 using Niantic.ARDK.AR.SLAM;
+using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Collections;
-using Niantic.ARDK.VirtualStudio.Remote;
+using Niantic.ARDK.VirtualStudio.AR.Mock;
+
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 
 using UnityEngine;
 
@@ -22,8 +27,7 @@ namespace Niantic.ARDK.AR.Frame
 {
   [Serializable]
   internal abstract class _SerializableARFrameBase:
-    _ARFrameBase,
-    IARFrame
+    _IARFrame
   {
     protected _SerializableARFrameBase()
     {
@@ -39,7 +43,7 @@ namespace Niantic.ARDK.AR.Frame
       ReadOnlyCollection<IARAnchor> anchors, // Even native ARAnchors are directly serializable.
       _SerializableARMap[] maps,
       float worldScale,
-      Matrix4x4 estimatedDisplayTransform
+      _SerializableARPointCloud featurePoints
     )
     {
       CapturedImageBuffer = capturedImageBuffer;
@@ -48,11 +52,9 @@ namespace Niantic.ARDK.AR.Frame
       Camera = camera;
       LightEstimate = lightEstimate;
       WorldScale = worldScale;
-
+      RawFeaturePoints = featurePoints;
       Anchors = anchors;
       Maps = maps.AsNonNullReadOnly<IARMap>();
-
-      _estimatedDisplayTransform = estimatedDisplayTransform;
     }
 
     public void Dispose()
@@ -65,20 +67,56 @@ namespace Niantic.ARDK.AR.Frame
     public _SerializableImageBuffer CapturedImageBuffer { get; set; }
     public _SerializableDepthBuffer DepthBuffer { get; set; }
     public _SerializableSemanticBuffer SemanticBuffer { get; set; }
+
+    public IDataBufferFloat32 CopySemanticConfidences(string channelName)
+    {
+      // Require keyframe semantics
+      if (!(SemanticBuffer is {IsKeyframe: true}))
+        return null;
+
+      if (!SemanticBuffer.DoesChannelExist(channelName))
+        return null;
+
+      var data = new NativeArray<float>
+      (
+        (int)SemanticBuffer.Width * (int)SemanticBuffer.Height,
+        Allocator.Persistent,
+        NativeArrayOptions.UninitializedMemory
+      );
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+      NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref data, AtomicSafetyHandle.Create());
+#endif
+
+      var flag = SemanticBuffer.GetChannelTextureMask(channelName);
+      var source = SemanticBuffer.Data;
+      for (int i = 0; i < source.Length; i++)
+        data[i] = (source[i] & flag) != 0 ? 1.0f : 0.0f;
+
+      return new _SerializeableAwarenessBufferF32
+      (
+        SemanticBuffer.Width,
+        SemanticBuffer.Height,
+        true,
+        SemanticBuffer.ViewMatrix,
+        data,
+        SemanticBuffer.Intrinsics
+      );
+    }
+
+    public IReadOnlyList<Detection> PalmDetections { get; set; }
+
     public _SerializableARCamera Camera { get; set; }
     public _SerializableARLightEstimate LightEstimate { get; set; }
     public ReadOnlyCollection<IARAnchor> Anchors { get; set; }
+    public IDepthPointCloud DepthPointCloud { get; set; }
     public ReadOnlyCollection<IARMap> Maps { get; set; }
     public float WorldScale { get; set; }
+    public _SerializableARPointCloud RawFeaturePoints { get; set; }
 
     public IntPtr[] CapturedImageTextures
     {
-      get { return EmptyArray<IntPtr>.Instance; }
-    }
-
-    public IARPointCloud RawFeaturePoints
-    {
-      get { return null; }
+      get => EmptyArray<IntPtr>.Instance;
     }
 
     public abstract ReadOnlyCollection<IARHitTestResult> HitTest
@@ -89,7 +127,6 @@ namespace Niantic.ARDK.AR.Frame
       ARHitTestResultType types
     );
 
-    private readonly Matrix4x4 _estimatedDisplayTransform;
     public Matrix4x4 CalculateDisplayTransform
     (
       ScreenOrientation orientation,
@@ -97,7 +134,21 @@ namespace Niantic.ARDK.AR.Frame
       int viewportHeight
     )
     {
-      return _estimatedDisplayTransform;
+       // Cannot use Screen properties in Editor due to this bug: Unity Issue-598763
+ #if UNITY_EDITOR
+       return
+         MathUtils.CalculateDisplayTransform
+         (
+           _MockFrameBufferProvider._ARImageWidth,
+           _MockFrameBufferProvider._ARImageHeight,
+           viewportWidth,
+           viewportHeight,
+           orientation,
+           invertVertically: true
+         );
+#else
+      throw new InvalidOperationException();
+#endif
     }
 
     public void ReleaseImageAndTextures()
@@ -124,38 +175,33 @@ namespace Niantic.ARDK.AR.Frame
       }
     }
 
-    public IARFrame Serialize
-    (
-      bool includeImageBuffers = true,
-      bool includeAwarenessBuffers = true,
-      int compressionLevel = 70
-    )
+    IARPointCloud IARFrame.RawFeaturePoints
     {
-      return _Serialize(this, includeImageBuffers, includeAwarenessBuffers, compressionLevel);
+      get => RawFeaturePoints;
     }
 
     IImageBuffer IARFrame.CapturedImageBuffer
     {
-      get { return CapturedImageBuffer; }
+      get => CapturedImageBuffer;
     }
     IDepthBuffer IARFrame.Depth
     {
-      get { return DepthBuffer; }
+      get => DepthBuffer;
     }
 
     ISemanticBuffer IARFrame.Semantics
     {
-      get { return SemanticBuffer; }
+      get => SemanticBuffer;
     }
 
     IARCamera IARFrame.Camera
     {
-      get { return Camera; }
+      get => Camera;
     }
 
     IARLightEstimate IARFrame.LightEstimate
     {
-      get { return LightEstimate; }
+      get => LightEstimate;
     }
   }
 }

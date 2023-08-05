@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 using System;
 
 using Niantic.ARDK.AR;
@@ -10,7 +11,7 @@ using UnityEngine;
 
 using Object = UnityEngine.Object;
 
-namespace Niantic.ARDK.Helpers
+namespace Niantic.ARDK.Extensions
 {
   /// Event args for when the AR video feed gets updated.
   public sealed class VideoFeedUpdatedArgs: IArdkEventArgs
@@ -20,14 +21,14 @@ namespace Niantic.ARDK.Helpers
 
     /// The AR background image.
     public readonly RenderTexture Texture;
-    
+
     public VideoFeedUpdatedArgs(IARFrameRenderer renderer, RenderTexture texture)
     {
       Renderer = renderer;
       Texture = texture;
     }
   }
-  
+
   /// AR background video feed. It is designed to set up
   /// continuous rendering to an offscreen texture.
   public sealed class ARVideoFeed: IDisposable
@@ -40,10 +41,10 @@ namespace Niantic.ARDK.Helpers
     {
       get => _renderer;
     }
-    
+
     /// The rendered AR background texture.
     public RenderTexture GPUTexture { get; }
-    
+
     /// Prevents us from writing back the values _we_ set in case we accidentally set the
     /// previous rates twice,
     /// i.e. we set the application's previous frame rate and sleep timeout in
@@ -115,11 +116,11 @@ namespace Niantic.ARDK.Helpers
         Screen.sleepTimeout,
         QualitySettings.vSyncCount
       );
-      
+
       // Configure target frame rate
       QualitySettings.vSyncCount = 0;
       Application.targetFrameRate = _renderer.RecommendedFrameRate;
-      
+
       _renderer.Enable();
       _renderer.FrameRendered += OnFrameRendered;
       _UpdateLoop.LateTick += UpdateLoop_OnLateTick;
@@ -130,12 +131,12 @@ namespace Niantic.ARDK.Helpers
       // Revert application settings
       _savedRenderingSettings?.Apply();
       _savedRenderingSettings = null;
-      
+
       _renderer.Disable();
       _renderer.FrameRendered -= OnFrameRendered;
       _UpdateLoop.LateTick -= UpdateLoop_OnLateTick;
     }
-    
+
     private void OnFrameRendered(FrameRenderedArgs args)
     {
       var arguments = new VideoFeedUpdatedArgs(args.Renderer, GPUTexture);
@@ -151,7 +152,7 @@ namespace Niantic.ARDK.Helpers
       bool lockOrientation
     )
     {
-      ARFrameRenderer result = ARFrameRendererFactory.Create(target, env, near, far);
+      var result = ARFrameRendererFactory.Create(target, env, near, far);
       result.IsOrientationLocked = lockOrientation;
       return result;
     }

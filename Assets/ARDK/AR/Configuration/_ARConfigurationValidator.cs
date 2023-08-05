@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 
@@ -13,105 +13,6 @@ namespace Niantic.ARDK.AR.Configuration
 {
   internal static class _ARConfigurationValidator
   {
-    /** Compatibility Cases
-     *  Currently it's not possible to have anything other than IARWorldTrackingConfiguration,
-     *  so we don't handle those cases in detail. If FaceTracking is re-added to ARDK, need to handle
-     *  Face and World tracking switches somehow.
-     *
-     *  Between WorldTrackingConfigurations, the only valid MappingRole transitions are from
-     *  Mapping to Localizing and back. You can NOT transition to or out of the MapperIfHost role.
-     */
-
-    public static bool IsCompatibleWithConfig
-    (
-      this IARConfiguration c1,
-      IARConfiguration c2,
-      out string message
-    )
-    {
-      message = string.Empty;
-      if (c1 == null)
-        return true;
-
-      var prevWorldConfig = c1 as IARWorldTrackingConfiguration;
-      var currWorldConfig = c2 as IARWorldTrackingConfiguration;
-
-      var failureReason = string.Empty;
-      if (prevWorldConfig != null && currWorldConfig != null)
-      {
-        var prevHasReuseRole = prevWorldConfig.MappingRole != MappingRole.MapperIfHost;
-        var currHasReuseRole = currWorldConfig.MappingRole != MappingRole.MapperIfHost;
-
-        if (prevHasReuseRole != currHasReuseRole)
-          failureReason = "MappingRole";
-
-        var sameMapLayer =
-          prevWorldConfig.MapLayerIdentifier.Equals(currWorldConfig.MapLayerIdentifier);
-
-        if (!sameMapLayer)
-          failureReason = "MapLayerIdentifier";
-      }
-
-      if (!string.IsNullOrEmpty(failureReason))
-      {
-        message =
-          string.Format
-          (
-            "Given configuration's {0} value is incompatible with the one previously used to run this session",
-            failureReason
-          );
-
-        return false;
-      }
-
-      return true;
-    }
-
-    public static bool IsCompatibleWithSession
-    (
-      this IARConfiguration config,
-      IARSession session,
-      out string message
-    )
-    {
-      message = string.Empty;
-
-      var worldConfig = config as IARWorldTrackingConfiguration;
-
-      if (worldConfig == null)
-        return true;
-
-      var hasMapLayer = !worldConfig.MapLayerIdentifier.IsEmpty();
-
-      if (hasMapLayer && !worldConfig.IsSharedExperienceEnabled)
-      {
-        message = "Only configurations where IsSharedExperienceEnabled is true can use map layers.";
-        return false;
-      }
-
-      var hasResuleRole = worldConfig.MappingRole != MappingRole.MapperIfHost;
-      if (hasMapLayer && !hasResuleRole)
-      {
-        message = "Only configurations where MappingRole is not MapperIfHost can use map layers.";
-        return false;
-      }
-
-      if (!hasMapLayer && hasResuleRole)
-      {
-        message = "Only configurations with a valid MapLayerIdentifier value can use map layers.";
-        return false;
-      }
-
-      var isEditorSession = session.RuntimeEnvironment != RuntimeEnvironment.LiveDevice;
-      if (isEditorSession && (hasMapLayer || hasResuleRole))
-      {
-        message = "Map layers are not supported by Virtual Studio AR sessions.";
-        return false;
-      }
-
-      return true;
-    }
-
     private static bool IsValidConfiguration(this IARConfiguration config, out string message)
     {
       message = string.Empty;
@@ -149,7 +50,7 @@ namespace Niantic.ARDK.AR.Configuration
 
 
       var isDepthEnabled = worldConfig.IsDepthEnabled;
-      var isPointCloudEnabled = worldConfig.DepthPointCloudSettings.IsEnabled;
+      var isPointCloudEnabled = worldConfig.IsDepthPointCloudEnabled;
 
       if (isPointCloudEnabled && !isDepthEnabled)
       {
@@ -173,14 +74,21 @@ namespace Niantic.ARDK.AR.Configuration
 
         worldConfig.IsDepthEnabled = true;
       }
-
+      
+      // This section of code is needed because the default Context Awareness URL is generated
+      // (when necessary) in internal code if no Context Awareness URL is provided.
       var needsContextAwarenessUrl =
         isDepthEnabled ||
         worldConfig.IsMeshingEnabled ||
         worldConfig.IsSemanticSegmentationEnabled;
 
-      var hasEmptyUrl = string.IsNullOrEmpty(ArdkGlobalConfig.GetContextAwarenessUrl());
-
+#pragma warning disable 0618
+      // TODO AR-12775: Formally move several public URL set/get api's to private
+      // Warning disabled for now. When the method has been removed from the public API, the
+      // warning should be re-enabled.
+      var hasEmptyUrl = string.IsNullOrEmpty(ArdkGlobalConfig._Internal.GetContextAwarenessUrl());
+#pragma warning restore 0618
+      
       if (needsContextAwarenessUrl && hasEmptyUrl)
       {
         ARLog._Debug("Context Awareness URL was not set. The default URL will be used.");
@@ -232,20 +140,6 @@ namespace Niantic.ARDK.AR.Configuration
       IARConfiguration newConfiguration
     )
     {
-      string sessionCheckMessage;
-      if (!newConfiguration.IsCompatibleWithSession(arSession, out sessionCheckMessage))
-      {
-        ARLog._Error(sessionCheckMessage);
-        return false;
-      }
-
-      string configCheckMessage;
-      if (!arSession.Configuration.IsCompatibleWithConfig(newConfiguration, out configCheckMessage))
-      {
-        ARLog._Error(configCheckMessage);
-        return false;
-      }
-
       string validConfigCheckMessage;
       if (!newConfiguration.IsValidConfiguration(out validConfigCheckMessage))
       {

@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System.Collections;
 using System.Text;
@@ -22,25 +22,9 @@ namespace Niantic.ARDK.VirtualStudio.Remote
   /// </summary>
   public class RemoteConnectionUI: MonoBehaviour
   {
-    [Header("Pre-Connection UI")]
-    [SerializeField]
-    private GameObject _preSelectionUI = null;
-
-    [SerializeField]
-    private Button _usbConnectButton = null;
-
-    [SerializeField]
-    private Button _internetConnectButton = null;
-
     [Header("Connection Starting UI")]
     [SerializeField]
     private GameObject _postSelectionUI = null;
-
-    [SerializeField]
-    private int pinLength = 6;
-
-    [SerializeField]
-    private Text _pinDisplay = null;
 
     [Header("Connected UI")]
     [SerializeField]
@@ -55,82 +39,33 @@ namespace Niantic.ARDK.VirtualStudio.Remote
     [SerializeField]
     private Text _arNetworkingStatusText = null;
 
-    private bool _hasSelectedMode;
     private IARSession _activeARSession;
-
-    private Random _random = new Random();
-    private const string PIN_DISPLAY_TEXT = "PIN: {0}";
 
     private void Awake()
     {
       SubscribeToLifecycleEvents();
-
-      _preSelectionUI.SetActive(true);
-      _postSelectionUI.SetActive(false);
-
-      // Setup selection stage.
-      Camera.main.backgroundColor = Color.black;
-
-      _usbConnectButton.onClick.AddListener
-      (
-        () => { StartConnection(_RemoteConnection.ConnectionMethod.USB); }
-      );
-
-      _internetConnectButton.onClick.AddListener
-      (
-        () => { StartConnection(_RemoteConnection.ConnectionMethod.Internet); }
-      );
-
-      _RemoteConnection.Deinitialized += Reset;
-    }
-
-    private void StartConnection(_RemoteConnection.ConnectionMethod connectionMethod)
-    {
-      string pin = null;
-      if (connectionMethod == _RemoteConnection.ConnectionMethod.Internet)
-      {
-        // Build a pin.
-        var pinBuilder = new StringBuilder();
-
-        for (var i = 0; i < pinLength; i++)
-        {
-          var nextChar = (char)_random.Next('A', 'Z');
-          pinBuilder.Append(nextChar);
-        }
-
-        pin = pinBuilder.ToString();
-        // Add "PIN:" to the display text, but not the pin used to connect
-        _pinDisplay.text = string.Format(PIN_DISPLAY_TEXT, pin);
-        _pinDisplay.enabled = true;
-      }
-      else
-      {
-        _pinDisplay.enabled = false;
-      }
-
-      _hasSelectedMode = true;
-      _preSelectionUI.SetActive(false);
       _postSelectionUI.SetActive(true);
-
-      // Connect using settings.
-      _RemoteConnection.InitIfNone(connectionMethod);
-      _RemoteConnection.Connect(pin);
+      StartConnection(_RemoteConnection.ConnectionMethod.USB);
+      
+      _RemoteConnection.Deinitialized += Reset;
     }
 
     private void Reset()
     {
-      _hasSelectedMode = false;
-      _preSelectionUI.SetActive(true);
-      _postSelectionUI.SetActive(false);
-      _pinDisplay.enabled = true;
       Camera.main.backgroundColor = Color.blue;
+    }
+
+    private void StartConnection(_RemoteConnection.ConnectionMethod connectionMethod)
+    {
+      _postSelectionUI.SetActive(true);
+
+      // Connect using settings.
+      _RemoteConnection.InitIfNone(connectionMethod);
+      _RemoteConnection.Connect(null);
     }
 
     private void Update()
     {
-      if (!_hasSelectedMode)
-        return;
-
       // UI is not visible when camera feed is rendering
       if (_activeARSession != null && _activeARSession.State == ARSessionState.Running)
         return;
@@ -140,7 +75,6 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       {
         _connectionStatusText.text = "Connected to editor!";
         Camera.main.backgroundColor = Color.green;
-        _pinDisplay.enabled = false;
       }
       else if (_RemoteConnection.IsReady)
       {
@@ -149,8 +83,8 @@ namespace Niantic.ARDK.VirtualStudio.Remote
       }
       else
       {
-        _connectionStatusText.text = "Waiting for service...";
-        Camera.main.backgroundColor = Color.magenta;
+        _connectionStatusText.text = "Unity Editor disconnected.";
+        Camera.main.backgroundColor = Color.gray;
       }
     }
 

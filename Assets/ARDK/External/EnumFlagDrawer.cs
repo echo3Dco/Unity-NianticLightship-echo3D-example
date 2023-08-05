@@ -1,3 +1,4 @@
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 // Not sure if copied or inspired by https://gist.github.com/ikriz/b0f9d96205629e19859e
 
 #if UNITY_EDITOR

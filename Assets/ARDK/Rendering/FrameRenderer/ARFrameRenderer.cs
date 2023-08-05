@@ -1,8 +1,10 @@
-﻿using System;
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 using Niantic.ARDK.AR;
+using Niantic.ARDK.AR.Camera;
 using Niantic.ARDK.Utilities;
 using Niantic.ARDK.Utilities.Logging;
 
@@ -15,7 +17,7 @@ using Object = UnityEngine.Object;
 namespace Niantic.ARDK.Rendering
 {
   /// Rendering logic and resources shared across all platforms.
-  public abstract class ARFrameRenderer: 
+  public abstract class ARFrameRenderer:
     IARFrameRenderer,
     IDisposable
   {
@@ -54,7 +56,7 @@ namespace Niantic.ARDK.Rendering
     }
 
     public GraphicsFence? GPUFence { get; protected set; }
-    
+
     public virtual int RecommendedFrameRate
     {
       get
@@ -63,9 +65,25 @@ namespace Niantic.ARDK.Rendering
       }
     }
 
+    /// Event for when the renderer had just initialized.
+    public event ArdkEventHandler<FrameRenderedArgs> Initialized
+    {
+      add
+      {
+        _initialized += value;
+        if (_isInitialized)
+        {
+          var args = new FrameRenderedArgs(this);
+          value.Invoke(args);
+        }
+      }
+      remove => _initialized -= value;
+    }
+    private event ArdkEventHandler<FrameRenderedArgs> _initialized;
+    
     /// Event for when the renderer had just finished rendering to its primary target.
     public event ArdkEventHandler<FrameRenderedArgs> FrameRendered;
-
+    
     public void AddFeatureProvider(IRenderFeatureProvider provider)
     {
       if (!_isInitialized)
@@ -88,15 +106,9 @@ namespace Niantic.ARDK.Rendering
       provider.ActiveFeaturesChanged += ActiveFeaturesChanged;
 
       // Assign render target
-      if (provider is ITargetableRenderFeatureProvider targetableRenderFeatureProvider)
-        targetableRenderFeatureProvider.Target = Target;
-      else
-      {
-        var exception = "Could not cast IRenderFeatureProvider to ITargetableRenderFeatureProvider";
-        throw new InvalidCastException(exception);
-      }
+      provider.Target = Target;
 
-      // Register the provider
+        // Register the provider
       _stateProviders.Add(provider);
     }
 
@@ -104,13 +116,13 @@ namespace Niantic.ARDK.Rendering
     {
       if (!_isInitialized)
         return;
-      
+
       if (!_stateProviders.Contains(provider))
       {
         ARLog._Warn("The specified render state provider is not attached to the renderer.");
         return;
       }
-      
+
       provider.ActiveFeaturesChanged -= ActiveFeaturesChanged;
       _stateProviders.Remove(provider);
     }
@@ -120,19 +132,28 @@ namespace Niantic.ARDK.Rendering
     /// The platform specific shader used to render the frame.
     protected abstract Shader Shader { get; }
 
+    [Obsolete("Implement OnConfigurePipeline() override without Resolution params instead.")]
+    protected virtual GraphicsFence? OnConfigurePipeline
+    (
+      RenderTarget target,
+      Resolution targetResolution,
+      Resolution sourceResolution,
+      Material renderMaterial
+    )
+    {
+      // Do nothing
+      return null;
+    }
+
     /// Invoked when it is time to allocate rendering resources
     /// and configure the platform specific pipeline.
     /// @param target The specified render target.
-    /// @param targetResolution Desired resolution of the artifact.
-    /// @param sourceResolution The resolution of the native textures.
     /// @param renderMaterial Material that will be used for rendering.
     /// @returns Fence that should be waited on in other command buffers that utilize the
     ///          texture output by this renderer.
     protected abstract GraphicsFence? OnConfigurePipeline
     (
       RenderTarget target,
-      Resolution targetResolution,
-      Resolution sourceResolution,
       Material renderMaterial
     );
 
@@ -167,7 +188,6 @@ namespace Niantic.ARDK.Rendering
 
     // State variables...
     private bool _isInitialized;
-    private bool _didConfigurePipeline;
 
     public bool IsEnabled { get; private set; }
 
@@ -178,12 +198,17 @@ namespace Niantic.ARDK.Rendering
     // Cached initial screen orientation
     private readonly ScreenOrientation _originalOrientation;
 
+    // Cache the current orientation to update native display geometry when it changes
+#pragma warning disable 0219
+    private ScreenOrientation _currentOrientation = ScreenOrientation.AutoRotation;
+#pragma warning restore 0219
+
     /// Material used to render the frame.
     private Material _renderMaterial;
 
     /// Whether the renderer is allowed to rotate the image.
     public bool IsOrientationLocked = false;
-    
+
     // A collection of the components that provide additional
     // information to render an AR Frame.
     private readonly List<IRenderFeatureProvider> _stateProviders = new List<IRenderFeatureProvider>();
@@ -194,8 +219,8 @@ namespace Niantic.ARDK.Rendering
     ///               automatically get updated for each frame.
     protected ARFrameRenderer(RenderTarget target)
     {
-      _originalOrientation = Screen.orientation;
-      
+      _originalOrientation = MathUtils.CalculateScreenOrientation();
+
       Target = target;
       Resolution = target.GetResolution(_originalOrientation);
 
@@ -216,7 +241,7 @@ namespace Niantic.ARDK.Rendering
     /// @param far The distance of the far clipping plane.
     protected ARFrameRenderer(RenderTarget target, float near, float far)
     {
-      _originalOrientation = Screen.orientation;
+      _originalOrientation = MathUtils.CalculateScreenOrientation();
       
       Target = target;
       Resolution = target.GetResolution(_originalOrientation);
@@ -233,14 +258,18 @@ namespace Niantic.ARDK.Rendering
         ARLog._Error("The ARFrameRenderer is already initialized");
         return;
       }
-      
+
       // Acquire the platform specific shader
       Shader platformShader = Shader;
       Assert.IsNotNull(platformShader, "platformShader != null");
 
       // Allocate the frame rendering material
       _renderMaterial = new Material(platformShader);
+      
+      // Perform platform specific configurations
+      ConfigurePipeline(Target, _renderMaterial);
 
+      _initialized?.Invoke(new FrameRenderedArgs(this));
       _isInitialized = true;
     }
 
@@ -253,11 +282,11 @@ namespace Niantic.ARDK.Rendering
 
       // Cache state
       IsEnabled = true;
-      
+
       // Wait for the pipeline to initialize
-      if (!_didConfigurePipeline)
+      if (!_isInitialized)
         return;
-      
+
       if (Target.IsTargetingCamera)
       {
         RegisterCameraEvents();
@@ -274,16 +303,20 @@ namespace Niantic.ARDK.Rendering
 
       // Cache state
       IsEnabled = false;
-      
+
       // Wait for the pipeline to initialize
-      if (!_didConfigurePipeline)
+      if (!_isInitialized)
         return;
-      
+
       if (Target.IsTargetingCamera)
       {
         UnregisterCameraEvents();
-        OnRemoveFromCamera(Target.Camera);
-        Target.Camera.ResetProjectionMatrix();
+
+        if (Target.Camera)
+        {
+          OnRemoveFromCamera(Target.Camera);
+          Target.Camera.ResetProjectionMatrix();
+        }
       }
     }
 
@@ -308,16 +341,20 @@ namespace Niantic.ARDK.Rendering
     private void ConfigurePipeline
     (
       RenderTarget target,
-      Resolution targetResolution,
-      Resolution sourceResolution,
       Material renderMaterial
     )
     {
-      if (_didConfigurePipeline)
-        return;
-
+#pragma warning disable 0618
       // Set up the platform specific commands
-      GPUFence = OnConfigurePipeline(target, targetResolution, sourceResolution, renderMaterial);
+      // TODO: Remove call to deprecated function when next major release lands
+      GPUFence = OnConfigurePipeline  
+      (
+        target,
+        target.GetResolution(MathUtils.CalculateScreenOrientation()),
+        new Resolution(),
+        renderMaterial
+      ) ?? OnConfigurePipeline(target, renderMaterial);
+#pragma warning restore 0618
       
       // If this renderer is already enabled by the time it
       // initialized, hook up to the target camera's loop
@@ -326,29 +363,15 @@ namespace Niantic.ARDK.Rendering
         RegisterCameraEvents();
         OnAddToCamera(Target.Camera);
       }
-
-      // Done
-      _didConfigurePipeline = true;
     }
 
     public void UpdateState(IARFrame withFrame)
     {
       if (!_isInitialized || !IsEnabled)
         return;
-
-      if (withFrame?.Camera == null || withFrame?.CapturedImageTextures == null)
+      
+      if (withFrame?.Camera == null || withFrame.CapturedImageTextures == null)
         return;
-
-      // We configure the rendering pipeline after the
-      // first frame update to gather more information
-      if (!_didConfigurePipeline)
-        ConfigurePipeline
-        (
-          target: Target,
-          targetResolution: Resolution,
-          sourceResolution: withFrame.Camera.ImageResolution,
-          renderMaterial: _renderMaterial
-        );
 
       // Calculate camera matrices
       UpdateCameraMatrices(withFrame);
@@ -361,7 +384,7 @@ namespace Niantic.ARDK.Rendering
         DisplayTransform,
         _renderMaterial
       );
-      
+
       if (!didUpdateState)
         return;
 
@@ -390,16 +413,18 @@ namespace Niantic.ARDK.Rendering
     /// @param texture The render target. This texture needs to be already allocated.
     public void BlitToTexture(ref RenderTexture texture)
     {
-      if (!_didConfigurePipeline)
+      if (!_isInitialized)
         throw new InvalidOperationException
           ("The ARFrameRenderer component cannot blit to texture in its current state");
 
       if (texture == null)
         return;
-
+      
+      var prev = RenderTexture.active;
       Graphics.Blit(null, texture, _renderMaterial);
+      RenderTexture.active = prev;
     }
-    
+
 #if ARDK_HAS_URP
 
     private void RenderPipelineManager_OnEndCameraRendering(ScriptableRenderContext context, Camera cam)
@@ -408,16 +433,16 @@ namespace Niantic.ARDK.Rendering
       if (Target.Camera == cam)
         FrameRendered?.Invoke(new FrameRenderedArgs(this));
     }
-    
+
 #else
-    
+
     private void Camera_OnPostRender(Camera cam)
     {
       // Propagate event
       if (Target.Camera == cam)
         FrameRendered?.Invoke(new FrameRenderedArgs(this));
     }
-    
+
 #endif
 
     private void ActiveFeaturesChanged(RenderFeaturesChangedArgs args)
@@ -455,11 +480,11 @@ namespace Niantic.ARDK.Rendering
     {
       // Disable renderer
       Disable();
-      
+
       // Remove render state providers
       foreach (var provider in _stateProviders)
         provider.ActiveFeaturesChanged -= ActiveFeaturesChanged;
-      
+
       _stateProviders.Clear();
 
       Release();
@@ -500,44 +525,54 @@ namespace Niantic.ARDK.Rendering
 
     private void UpdateCameraMatrices(IARFrame frame)
     {
-      var shouldInvertResolutionParams = !IsOrientationLocked && ShouldInvertResolutionParams();
-      var orientedWidth = shouldInvertResolutionParams ? Resolution.height : Resolution.width;
-      var orientedHeight = shouldInvertResolutionParams ? Resolution.width : Resolution.height;
+      // Determine target orientation
+      var targetOrientation =
+        IsOrientationLocked
+          ? _originalOrientation
+          : MathUtils.CalculateScreenOrientation();
 
+      // Calculate the target resolution according to the orientation
+      var targetResolution = Target.GetResolution(targetOrientation);
+      // Before getting any of the matrices, we need to call CorrectToActualOrientation() make sure
+      // C++ display geometry is updated on Android.
+      CorrectToActualOrientation(frame, targetOrientation, targetResolution.width, targetResolution.height);
+
+      // Update the projection matrix
       ProjectionTransform = frame.Camera.CalculateProjectionMatrix
       (
-        !IsOrientationLocked ? Screen.orientation : _originalOrientation,
-        orientedWidth,
-        orientedHeight,
+        targetOrientation,
+        targetResolution.width,
+        targetResolution.height,
         _nearClipPlane,
         _farClipPlane
       );
 
+      // Update the display transform matrix
       DisplayTransform = frame.CalculateDisplayTransform
-        (Screen.orientation, orientedWidth, orientedHeight);
+      (
+        targetOrientation,
+        targetResolution.width,
+        targetResolution.height
+      );
     }
 
-    private bool ShouldInvertResolutionParams()
+    private void CorrectToActualOrientation
+    (
+      IARFrame frame,
+      ScreenOrientation orientation,
+      int screenWith,
+      int screenHeight
+    )
     {
-      var orientation = Screen.orientation;
-      if (orientation == ScreenOrientation.AutoRotation)
-        return false;
-
-      var isOrientationPortrait =
-        (orientation == ScreenOrientation.Portrait ||
-          orientation == ScreenOrientation.PortraitUpsideDown);
-
-      if (isOrientationPortrait)
+      if (frame.Camera is IUpdatableARCamera updatableCamera)
       {
-        return
-          _originalOrientation == ScreenOrientation.LandscapeLeft ||
-          _originalOrientation == ScreenOrientation.LandscapeRight;
+        if (_currentOrientation != orientation)
+        {
+          updatableCamera.UpdateDisplayGeometry(orientation, screenWith, screenHeight);
+          _currentOrientation = orientation;
+        }
       }
-
-      return
-        _originalOrientation == ScreenOrientation.Portrait ||
-        _originalOrientation == ScreenOrientation.PortraitUpsideDown;
     }
-#endregion
+    #endregion
   }
 }

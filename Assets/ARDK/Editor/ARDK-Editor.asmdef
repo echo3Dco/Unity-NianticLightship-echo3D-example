@@ -1,7 +1,9 @@
 {
     "name": "ARDK-Editor",
     "references": [
-        "ARDK"
+        "ARDK",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
     ],
     "includePlatforms": [
         "Editor"

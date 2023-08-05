@@ -1,4 +1,4 @@
-// Copyright 2021 Niantic, Inc. All Rights Reserved.
+// Copyright 2022 Niantic, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using Niantic.ARDK.AR.ARSessionEventArgs;
 using Niantic.ARDK.AR.Configuration;
 using Niantic.ARDK.AR.Networking.ARNetworkingEventArgs;
-using Niantic.ARDK.AR.Networking.NetworkAnchors;
 using Niantic.ARDK.AR.SLAM;
 using Niantic.ARDK.Configuration;
 using Niantic.ARDK.Internals;
@@ -35,49 +34,37 @@ namespace Niantic.ARDK.AR.Networking
   {
     public IMultipeerNetworking Networking
     {
-      get
-      {
-        return _networking;
-      }
+      get { return _networking; }
     }
-
-    private readonly IMultipeerNetworking _networking;
 
     public IARSession ARSession
     {
-      get
-      {
-        return _arSession;
-      }
+      get { return _arSession; }
     }
-
-    private readonly IARSession _arSession;
 
     public IReadOnlyDictionary<IPeer, PeerState> LatestPeerStates
     {
-      get
-      {
-        return _readOnlyLatestPeerStates;
-      }
+      get { return _readOnlyLatestPeerStates; }
     }
-
-    // All accesses of this dictionary must come from the main thread.
-    private readonly Dictionary<IPeer, PeerState> _latestPeerStates =
-      new Dictionary<IPeer, PeerState>();
-
-    private _ReadOnlyDictionary<IPeer, PeerState> _readOnlyLatestPeerStates;
-
-    private readonly _NetworkAnchorManager _networkAnchorManager = new _NetworkAnchorManager();
 
     public IReadOnlyDictionary<IPeer, Matrix4x4> LatestPeerPoses
     {
-      get
-      {
-        return _networkAnchorManager.LatestPeerPoses;
-      }
+      get { return _readOnlyLatestPeerPoses; }
     }
 
-    /// <inheritdoc />
+    private readonly IMultipeerNetworking _networking;
+    private readonly IARSession _arSession;
+
+    // All accesses of these dictionary must come from the main thread.
+    private readonly Dictionary<IPeer, PeerState> _latestPeerStates =
+      new Dictionary<IPeer, PeerState>();
+
+    private readonly Dictionary<IPeer, Matrix4x4> _latestPeerPoses =
+      new Dictionary<IPeer, Matrix4x4>();
+
+    private _ReadOnlyDictionary<IPeer, PeerState> _readOnlyLatestPeerStates;
+    private _ReadOnlyDictionary<IPeer, Matrix4x4> _readOnlyLatestPeerPoses;
+
     public PeerState LocalPeerState { get; private set; }
 
     // Set to true if the _NativeARNetworking is destroyed, or if the underlying native code
@@ -88,7 +75,7 @@ namespace Niantic.ARDK.AR.Networking
     private MarkerScanCoordinator _scanCoordinator;
 
     // Creates an AR multipeer networking client with a custom server configuration.
-    internal _NativeARNetworking(IARSession arSession,ServerConfiguration configuration)
+    internal _NativeARNetworking(IARSession arSession, ServerConfiguration configuration)
     {
       _FriendTypeAsserter.AssertCallerIs(typeof(ARNetworkingFactory));
 
@@ -128,17 +115,12 @@ namespace Niantic.ARDK.AR.Networking
 
     private bool _ValidateComponents(IARSession arSession, IMultipeerNetworking networking)
     {
-      if (string.IsNullOrEmpty(ArdkGlobalConfig.GetDbowUrl()))
-      {
-        ARLog._Debug("DBOW URL was not set. The default URL will be used.");
-        ArdkGlobalConfig.SetDbowUrl(ArdkGlobalConfig._DBOW_URL);
-      }
-
       if (arSession.StageIdentifier != networking.StageIdentifier)
       {
         var msg =
           "Failed to create _NativeARNetworking because the ARSession and MultipeerNetworking" +
           " must have the same StageIdentifier.";
+
         ARLog._Error(msg);
         return false;
       }
@@ -149,9 +131,39 @@ namespace Niantic.ARDK.AR.Networking
 
     private void FinishInitialization()
     {
-      _arSession.Ran += HandleConfigurationChange;
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
+      {
+        ARLog._DebugFormat("Creating _NativeARNetworking");
 
-      InitializePeerStateTracking();
+        _nativeHandle =
+          _NARARMultipeerNetworking_InitWithNetworking
+          (
+            ((_NativeMultipeerNetworking)_networking).GetNativeHandle(),
+            (UInt16)NativeARNetworkingMode_Experimental.Default,
+            default(Guid),
+            0
+          );
+
+        // Inform the GC that this class is holding a large native object, so it gets cleaned up fast
+        // TODO(awang): Make an IReleasable interface that handles this for all native-related classes
+        GC.AddMemoryPressure(GCPressure);
+
+        ARLog._DebugFormat("Created _NativeARNetworking with handle: {0}", false, _nativeHandle);
+        SubscribeToInternalCallbacks(true);
+      }
+#pragma warning disable 0162
+      else
+      {
+        _nativeHandle = (IntPtr)1;
+      }
+#pragma warning restore 0162
+
+
+      _readOnlyLatestPeerStates = new _ReadOnlyDictionary<IPeer, PeerState>(_latestPeerStates);
+      _readOnlyLatestPeerPoses = new _ReadOnlyDictionary<IPeer, Matrix4x4>(_latestPeerPoses);
+
+      _networking.PeerAdded += OnPeerAdded;
+      _networking.PeerRemoved += OnPeerRemoved;
 
       ARLog._Debug("Finished creating _NativeARNetworking");
     }
@@ -160,100 +172,6 @@ namespace Niantic.ARDK.AR.Networking
     {
       ARLog._Error("_NativeARNetworking should be destroyed by an explicit call to Dispose().");
       Dispose(false);
-    }
-
-    private void HandleConfigurationChange(ARSessionRanArgs args)
-    {
-      _CheckThread();
-
-      if (_nativeHandle == IntPtr.Zero)
-      {
-        ConstructNativeHandle(_arSession.Configuration);
-        _UpdateLoop.Tick += ProcessGraphAnchorUpdates;
-      }
-      else
-      {
-        ConfigureMapping(_arSession.Configuration);
-      }
-    }
-
-    private void ConstructNativeHandle(IARConfiguration arConfig)
-    {
-#pragma warning disable 0162
-      if (NativeAccess.Mode != NativeAccess.ModeType.Native)
-        return;
-#pragma warning restore 0162
-
-      var nativeNetworking = _networking as _NativeMultipeerNetworking;
-      if (nativeNetworking == null)
-        throw new IncorrectlyUsedNativeClassException();
-
-      var worldConfiguration = arConfig as IARWorldTrackingConfiguration;
-
-      var isUsingCloudMaps =
-        worldConfiguration != null && (worldConfiguration.MappingRole != MappingRole.MapperIfHost);
-
-      if (isUsingCloudMaps)
-      {
-        ARLog._Debug("Creating a native handle for the _NativeARNetworking with cloud maps");
-
-        _nativeHandle =
-          _NARARMultipeerNetworking_InitWithNetworking
-          (
-            nativeNetworking.GetNativeHandle(),
-            (UInt16)NativeARNetworkingMode_Experimental.Experimental_1,
-            worldConfiguration.MapLayerIdentifier._ToGuid(),
-            (uint) (worldConfiguration.MappingRole == MappingRole.Mapper ? 0 : 1)
-          );
-      }
-      else
-      {
-        ARLog._Debug("Creating a native handle for the _NativeARNetworking without cloud maps");
-
-        _nativeHandle =
-          _NARARMultipeerNetworking_InitWithNetworking
-          (
-            nativeNetworking.GetNativeHandle(),
-            (UInt16)NativeARNetworkingMode_Experimental.Default,
-            default(Guid),
-            0
-          );
-      }
-
-      // Inform the GC that this class is holding a large native object, so it gets cleaned up fast
-      // TODO(awang): Make an IReleasable interface that handles this for all native-related classes
-      GC.AddMemoryPressure(GCPressure);
-
-      SubscribeToInternalCallbacks(true);
-    }
-
-    private void DisposeNativeHandle()
-    {
-#pragma warning disable 0162
-      if (NativeAccess.Mode != NativeAccess.ModeType.Native)
-        return;
-#pragma warning restore 0162
-
-      if (_nativeHandle != IntPtr.Zero)
-      {
-        _NARARMultipeerNetworking_Release(_nativeHandle);
-        _nativeHandle = IntPtr.Zero;
-        GC.RemoveMemoryPressure(GCPressure);
-      }
-
-      ARLog._Debug("Successfully released native ARNetworking object");
-    }
-
-    private void ConfigureMapping(IARConfiguration arConfig)
-    {
-      ARLog._Debug
-      (
-        "ARConfiguration changed, but toggling mapping is currently not supported. " +
-        "Nothing needs to happen."
-      );
-
-      // Todo (kcho): Call native method to toggle mapping. This will be in the MVP.
-      //throw new NotImplementedException("Toggling mapping is currently not supported. ");
     }
 
     public void Dispose()
@@ -279,9 +197,8 @@ namespace Niantic.ARDK.AR.Networking
           deinitializing(args);
         }
 
+        _networking.PeerAdded -= OnPeerAdded;
         _networking.PeerRemoved -= OnPeerRemoved;
-        _arSession.Ran -= HandleConfigurationChange;
-        _UpdateLoop.Tick -= ProcessGraphAnchorUpdates;
 
         if (_scanCoordinator != null)
         {
@@ -290,29 +207,36 @@ namespace Niantic.ARDK.AR.Networking
         }
       }
 
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native && _nativeHandle != IntPtr.Zero)
+      {
+        _NARARMultipeerNetworking_Release(_nativeHandle);
+        _nativeHandle = IntPtr.Zero;
+
+        GC.RemoveMemoryPressure(GCPressure);
+        ARLog._Debug("Released native ARNetworking object");
+      }
+
       _cachedHandle.Free();
       _cachedHandleIntPtr = IntPtr.Zero;
-
-      DisposeNativeHandle();
 
       IsDestroyed = true;
     }
 
     public void EnablePoseBroadcasting()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARARMultipeerNetworking_EnablePoseBroadcasting(_nativeHandle);
     }
 
     public void DisablePoseBroadcasting()
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARARMultipeerNetworking_DisablePoseBroadcasting(_nativeHandle);
     }
 
     public void SetTargetPoseLatency(Int64 targetPoseLatency)
     {
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
         _NARARMultipeerNetworking_SetTargetPoseLatency(_nativeHandle, targetPoseLatency);
     }
 
@@ -390,10 +314,6 @@ namespace Niantic.ARDK.AR.Networking
       _scanCoordinator.ScanForMarker(options, gotResult, scanner, deserializer);
     }
 
-    private void ProcessGraphAnchorUpdates()
-    {
-      _networkAnchorManager.ProcessAllNewData();
-    }
 
     // These callbacks are subscribed to at initialization as they set the data that will be provided
     // by accessors (LatestPeerPoses and LocalPeerState)
@@ -411,21 +331,13 @@ namespace Niantic.ARDK.AR.Networking
       SubscribeToDidReceiveStateFromPeer();
     }
 
-    private void InitializePeerStateTracking()
-    {
-      _readOnlyLatestPeerStates = new _ReadOnlyDictionary<IPeer, PeerState>(_latestPeerStates);
-
-      _networking.PeerAdded += OnPeerAdded;
-      _networking.PeerRemoved += OnPeerRemoved;
-    }
-
     // Add a peer to state tracking when they join the session
     private void OnPeerAdded(PeerAddedArgs args)
     {
       _CheckThread();
 
       var peer = args.Peer;
-      if(!_latestPeerStates.ContainsKey(peer))
+      if (!_latestPeerStates.ContainsKey(peer))
         _latestPeerStates.Add(peer, PeerState.Unknown);
     }
 
@@ -440,12 +352,12 @@ namespace Niantic.ARDK.AR.Networking
       {
         LocalPeerState = PeerState.Unknown;
         _latestPeerStates.Clear();
-        _networkAnchorManager.RemoveAllPeers();
+        _latestPeerPoses.Clear();
       }
       else
       {
         _latestPeerStates.Remove(peer);
-        _networkAnchorManager.RemovePeer(peer);
+        _latestPeerPoses.Remove(peer);
       }
     }
 
@@ -462,7 +374,7 @@ namespace Niantic.ARDK.AR.Networking
       if (arNetworking._networking == null)
         return true;
 
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
       {
         if (arNetworking._networking is _NativeMultipeerNetworking nativeNetworking)
         {
@@ -487,7 +399,7 @@ namespace Niantic.ARDK.AR.Networking
     private static IPeer _GetPeerFromHandle(IntPtr handle)
     {
 #pragma warning disable CS0162
-      if (NativeAccess.Mode == NativeAccess.ModeType.Testing)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Testing)
       {
         return _TestingShim._GetPeerFromTestingHandle(handle);
       }
@@ -505,7 +417,7 @@ namespace Niantic.ARDK.AR.Networking
 
       internal static IPeer _GetPeerFromTestingHandle(IntPtr handle)
       {
-        if (NativeAccess.Mode != NativeAccess.ModeType.Testing)
+        if (_NativeAccess.Mode != _NativeAccess.ModeType.Testing)
           return null;
 #pragma warning disable CS0162
         var index = handle.ToInt32();
@@ -521,7 +433,7 @@ namespace Niantic.ARDK.AR.Networking
         IPeer peer
       )
       {
-        if (NativeAccess.Mode != NativeAccess.ModeType.Testing)
+        if (_NativeAccess.Mode != _NativeAccess.ModeType.Testing)
           return;
 #pragma warning disable CS0162
         if (_peerLookup == null)
@@ -532,7 +444,8 @@ namespace Niantic.ARDK.AR.Networking
 
         var testingHandle = new IntPtr(_peerLookup.IndexOf(peer));
 
-        _onDidReceiveStateFromPeerNative(arNetworking._applicationHandle, rawPeerState, testingHandle);
+        _onDidReceiveStateFromPeerNative
+          (arNetworking._applicationHandle, rawPeerState, testingHandle);
 #pragma warning restore CS0162
       }
 
@@ -544,7 +457,7 @@ namespace Niantic.ARDK.AR.Networking
         IPeer peer
       )
       {
-        if (NativeAccess.Mode != NativeAccess.ModeType.Testing)
+        if (_NativeAccess.Mode != _NativeAccess.ModeType.Testing)
           return;
 #pragma warning disable CS0162
         if (_peerLookup == null)
@@ -579,17 +492,9 @@ namespace Niantic.ARDK.AR.Networking
 #pragma warning restore CS0162
       }
 
-      internal static void _InvokeNetworkAnchorManagerUpdate(_NativeARNetworking arNetworking)
-      {
-        // This is required to update pose dictionary managed by the NetworkAnchorManager. Because
-        //  the NetworkAnchorManager update happens before the CallbackQueue, the pose dictionary
-        //  will always be one frame behind events.
-        arNetworking.ProcessGraphAnchorUpdates();
-      }
-
       internal static void Reset()
       {
-        if(_peerLookup != null)
+        if (_peerLookup != null)
           _peerLookup.Clear();
 
         if (_pinnedPoses != null)
@@ -598,6 +503,7 @@ namespace Niantic.ARDK.AR.Networking
           {
             pose.Free();
           }
+
           _pinnedPoses.Clear();
         }
       }
@@ -614,7 +520,7 @@ namespace Niantic.ARDK.AR.Networking
       if (_didReceivePoseFromPeerInitialized)
         return;
 
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
       {
         _NARARMultipeerNetworking_Set_didReceivePoseFromPeerCallback
         (
@@ -646,9 +552,9 @@ namespace Niantic.ARDK.AR.Networking
     [MonoPInvokeCallback(typeof(_NARARMultipeerNetworking_Did_Receive_Pose_From_Peer_CallbackDelegate))]
     private static void _onDidReceivePoseFromPeerNative
     (
-       IntPtr context,
-       IntPtr pose,
-       IntPtr peerHandle
+      IntPtr context,
+      IntPtr pose,
+      IntPtr peerHandle
     )
     {
       var arNetworking = SafeGCHandle.TryGetInstance<_NativeARNetworking>(context);
@@ -682,9 +588,7 @@ namespace Niantic.ARDK.AR.Networking
             peer.Identifier
           );
 
-          var networkAnchorManager = arNetworking._networkAnchorManager;
-          if (networkAnchorManager != null)
-            networkAnchorManager.QueuePeerPose(peer, poseMatrix);
+          arNetworking._latestPeerPoses[peer] = poseMatrix;
 
           var peerPoseReceived = arNetworking._peerPoseReceived;
           if (peerPoseReceived != null)
@@ -707,7 +611,7 @@ namespace Niantic.ARDK.AR.Networking
       if (_didReceiveStateFromPeerInitialized)
         return;
 
-      if (NativeAccess.Mode == NativeAccess.ModeType.Native)
+      if (_NativeAccess.Mode == _NativeAccess.ModeType.Native)
       {
         _NARARMultipeerNetworking_Set_didReceiveStateFromPeerCallback
         (
@@ -736,7 +640,8 @@ namespace Niantic.ARDK.AR.Networking
       }
     }
 
-    [MonoPInvokeCallback(typeof(_NARARMultipeerNetworking_Did_Receive_State_From_Peer_CallbackDelegate))]
+    [MonoPInvokeCallback
+      (typeof(_NARARMultipeerNetworking_Did_Receive_State_From_Peer_CallbackDelegate))]
     private static void _onDidReceiveStateFromPeerNative
     (
       IntPtr context,
